@@ -1,0 +1,14 @@
+# Phase 1: local checklist UI
+customtkinter
+pillow
+numpy
+
+# Phase 2: screenshot import / computer vision
+opencv-python
+
+# Phase 3: Steam auth + cloud DB sync
+requests
+supabase
+
+# Phase 5: standalone .exe builds
+pyinstaller
