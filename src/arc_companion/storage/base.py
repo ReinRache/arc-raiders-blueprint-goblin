@@ -7,6 +7,7 @@ class UserState:
     steam_id: str
     blueprints_owned: list[int] = field(default_factory=list)
     blueprints_wanted: list[int] = field(default_factory=list)
+    blueprints_spare: list[int] = field(default_factory=list)
     updated_at: int = 0
 
 
