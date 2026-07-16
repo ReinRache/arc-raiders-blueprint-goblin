@@ -2,10 +2,11 @@ import customtkinter as ctk
 
 from arc_companion.data.blueprints import load_blueprints
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
-from arc_companion.storage.local_store import LOCAL_USER_ID, LocalJSONStore
+from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.ui.action_bar import ActionBar
 from arc_companion.ui.blueprint_grid import CELL_SIZE, BlueprintGrid
 from arc_companion.ui.scan_dialog import ScanDialog
+from arc_companion.ui.settings_dialog import SettingsDialog
 from arc_companion.ui.sidebar import Sidebar
 
 # Gap between the window's width and the blueprint grid's actual usable
@@ -36,7 +37,12 @@ class MainWindow(ctk.CTk):
         self.minsize(_MIN_COLUMNS * CELL_SIZE + _GRID_OVERHEAD_PX, 700)
 
         self.store = LocalJSONStore()
-        self.user_state = self.store.load_state(LOCAL_USER_ID)
+        self.user_state = self.store.load_state()
+        # load_state() generates a fresh arbg_user_id in memory on a brand-new
+        # install (or migrates an old-format file) but doesn't write it back —
+        # persist immediately so the identity is stable from the very first
+        # launch, not regenerated on every run until some other save happens.
+        self.store.save_state(self.user_state)
         self.owned_ids = set(self.user_state.blueprints_owned)
         self.wanted_ids = set(self.user_state.blueprints_wanted)
         self.spare_ids = set(self.user_state.blueprints_spare)
@@ -49,7 +55,9 @@ class MainWindow(ctk.CTk):
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0, minsize=60)
 
-        self.sidebar = Sidebar(self, total_blueprints=self.total_blueprints)
+        self.sidebar = Sidebar(
+            self, total_blueprints=self.total_blueprints, on_settings=self._on_settings_clicked
+        )
         self.sidebar.grid(row=0, column=0, rowspan=2, sticky="nsew")
 
         self.main_view = ctk.CTkFrame(self, fg_color="transparent")
@@ -157,6 +165,24 @@ class MainWindow(ctk.CTk):
 
         self.dirty = True
         self.action_bar.set_dirty(True)
+
+    def _on_settings_clicked(self) -> None:
+        SettingsDialog(
+            self,
+            arbg_user_id=self.user_state.arbg_user_id,
+            steam_id=self.user_state.steam_id,
+            friend_ids=self.user_state.arbg_friend_user_ids,
+            on_friends_changed=self._on_friends_changed,
+            on_steam_linked=self._on_steam_linked,
+        )
+
+    def _on_friends_changed(self, friend_ids: list[str]) -> None:
+        self.user_state.arbg_friend_user_ids = friend_ids
+        self.store.save_state(self.user_state)
+
+    def _on_steam_linked(self, steam_id: str) -> None:
+        self.user_state.steam_id = steam_id
+        self.store.save_state(self.user_state)
 
 
 def run() -> None:

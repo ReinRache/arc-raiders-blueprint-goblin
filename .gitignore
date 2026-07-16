@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 config.json
+credentials.json
 dist/
 build/
 *.spec

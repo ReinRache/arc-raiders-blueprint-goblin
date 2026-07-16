@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 
 @dataclass
 class UserState:
-    steam_id: str
+    arbg_user_id: str
+    steam_id: str | None = None  # populated only if/when the user links Steam
+    arbg_friend_user_ids: list[str] = field(default_factory=list)
     blueprints_owned: list[int] = field(default_factory=list)
     blueprints_wanted: list[int] = field(default_factory=list)
     blueprints_spare: list[int] = field(default_factory=list)
@@ -13,7 +15,9 @@ class UserState:
 
 class Store(ABC):
     @abstractmethod
-    def load_state(self, user_id: str) -> UserState:
+    def load_state(self, user_id: str | None = None) -> UserState:
+        """user_id selects whose row to load for a multi-user store (e.g. a
+        future cloud store); a single-user local store can ignore it."""
         ...
 
     @abstractmethod
