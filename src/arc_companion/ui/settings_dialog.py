@@ -1,3 +1,4 @@
+import webbrowser
 from collections.abc import Callable
 
 import customtkinter as ctk
@@ -188,14 +189,36 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         ctk.CTkLabel(
             frame,
-            text="Get your own free personal key at steamcommunity.com/dev/apikey — never shared, "
-            "stored only on this device.",
+            text="Get your own free personal key — never shared, stored only on this device.",
             text_color="gray",
             wraplength=480,
             justify="left",
-        ).grid(row=7, column=0, sticky="w", pady=(0, 6))
+        ).grid(row=7, column=0, sticky="w")
+        api_key_url = "https://steamcommunity.com/dev/apikey"
+        api_key_link = ctk.CTkLabel(
+            frame,
+            text=api_key_url.removeprefix("https://"),
+            text_color="#4FA8E0",
+            font=ctk.CTkFont(underline=True),
+            cursor="hand2",
+            anchor="w",
+        )
+        api_key_link.grid(row=8, column=0, sticky="w", pady=(0, 2))
+        api_key_link.bind("<Button-1>", lambda _event: webbrowser.open(api_key_url))
+        ctk.CTkLabel(
+            frame,
+            # Steam's registration form asks for a "Domain Name" even though this
+            # isn't a website — confirmed via Steam's own support forums that the
+            # field isn't actually verified, and "localhost" is the standard,
+            # widely-used value for any non-website use of a personal key.
+            text='That form asks for a "Domain Name" — since this isn\'t a website, enter '
+            '"localhost".',
+            text_color="gray",
+            wraplength=480,
+            justify="left",
+        ).grid(row=9, column=0, sticky="w", pady=(0, 6))
         key_row = ctk.CTkFrame(frame, fg_color="transparent")
-        key_row.grid(row=8, column=0, sticky="ew")
+        key_row.grid(row=10, column=0, sticky="ew")
         self.api_key_entry = ctk.CTkEntry(key_row, width=300, show="*")
         self.api_key_entry.grid(row=0, column=0, padx=(0, 8))
         ctk.CTkButton(key_row, text="Save", width=80, command=self._on_save_api_key).grid(row=0, column=1)
