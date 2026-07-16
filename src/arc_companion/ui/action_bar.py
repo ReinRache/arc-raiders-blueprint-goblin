@@ -19,7 +19,13 @@ _SYNC_DIRTY_STYLE = {
 
 
 class ActionBar(ctk.CTkFrame):
-    def __init__(self, master, on_sync: Callable[[], None] | None = None, **kwargs):
+    def __init__(
+        self,
+        master,
+        on_sync: Callable[[], None] | None = None,
+        on_scan: Callable[[], None] | None = None,
+        **kwargs,
+    ):
         super().__init__(
             master, height=60, corner_radius=0, border_width=1, border_color="#2A2A2A", **kwargs
         )
@@ -27,6 +33,7 @@ class ActionBar(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=0)
         self.grid_columnconfigure(1, weight=1)
         self._on_sync = on_sync
+        self._on_scan = on_scan
 
         # Honest for Phase 1: there is no cloud yet, so this doesn't claim one exists
         self.status_label = ctk.CTkLabel(
@@ -44,9 +51,8 @@ class ActionBar(ctk.CTkFrame):
         self.btn_sync.grid(row=0, column=1, padx=10, pady=15, sticky="w")
         self.set_dirty(False)
 
-        # Placeholder for a later phase (OCR import) — visible but inert
         self.btn_scan = ctk.CTkButton(
-            self, text="Scan Screenshot (OCR)", width=180, state="disabled"
+            self, text="Scan Collection Screenshots", width=200, command=self._handle_scan_click
         )
         self.btn_scan.grid(row=0, column=2, padx=20, pady=15, sticky="e")
 
@@ -56,3 +62,7 @@ class ActionBar(ctk.CTkFrame):
     def _handle_sync_click(self) -> None:
         if self._on_sync is not None:
             self._on_sync()
+
+    def _handle_scan_click(self) -> None:
+        if self._on_scan is not None:
+            self._on_scan()

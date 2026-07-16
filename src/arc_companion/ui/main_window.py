@@ -5,6 +5,7 @@ from arc_companion.domain.status import BlueprintStatus, apply_status, status_fo
 from arc_companion.storage.local_store import LOCAL_USER_ID, LocalJSONStore
 from arc_companion.ui.action_bar import ActionBar
 from arc_companion.ui.blueprint_grid import CELL_SIZE, BlueprintGrid
+from arc_companion.ui.scan_dialog import ScanDialog
 from arc_companion.ui.sidebar import Sidebar
 
 # Gap between the window's width and the blueprint grid's actual usable
@@ -89,7 +90,7 @@ class MainWindow(ctk.CTk):
         self.grid_view.grid(row=2, column=0, sticky="nsew")
 
         self.dirty = False
-        self.action_bar = ActionBar(self, on_sync=self._on_sync_clicked)
+        self.action_bar = ActionBar(self, on_sync=self._on_sync_clicked, on_scan=self._on_scan_clicked)
         self.action_bar.grid(row=1, column=1, sticky="ew")
 
     def _status_for_id(self, blueprint_id: int) -> BlueprintStatus:
@@ -127,6 +128,35 @@ class MainWindow(ctk.CTk):
         # once there's a cloud Store this is where the actual push call goes.
         self.dirty = False
         self.action_bar.set_dirty(False)
+
+    def _on_scan_clicked(self) -> None:
+        ScanDialog(
+            self,
+            blueprints=self.blueprints,
+            owned_ids=self.owned_ids,
+            wanted_ids=self.wanted_ids,
+            spare_ids=self.spare_ids,
+            on_apply=self._apply_scan_result,
+        )
+
+    def _apply_scan_result(self, owned_ids: set[int], wanted_ids: set[int], spare_ids: set[int]) -> None:
+        self.owned_ids, self.wanted_ids, self.spare_ids = owned_ids, wanted_ids, spare_ids
+        self.user_state.blueprints_owned = sorted(self.owned_ids)
+        self.user_state.blueprints_wanted = sorted(self.wanted_ids)
+        self.user_state.blueprints_spare = sorted(self.spare_ids)
+        self.store.save_state(self.user_state)
+
+        # A scan can change many blueprints at once (unlike a single card
+        # click), so refresh every existing card's status rather than just
+        # one — still cheap, refresh_status() only recolors a label/button,
+        # no icon reload or re-layout.
+        for bp in self.blueprints:
+            self.grid_view.refresh_status(bp.id)
+        self.view_title.configure(text=self._header_text())
+        self.sidebar.set_owned_count(len(self.owned_ids))
+
+        self.dirty = True
+        self.action_bar.set_dirty(True)
 
 
 def run() -> None:
