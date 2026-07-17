@@ -3,6 +3,7 @@ __pycache__/
 *.pyc
 config.json
 credentials.json
+supabase_session.json
 dist/
 build/
 *.spec

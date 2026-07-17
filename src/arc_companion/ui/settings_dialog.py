@@ -1,11 +1,16 @@
+import threading
 import webbrowser
 from collections.abc import Callable
+from tkinter import messagebox
 
 import customtkinter as ctk
+from supabase import Client
 
+from arc_companion.cloud.sync import ensure_session, wipe_cloud_data
 from arc_companion.identity import AddFriendError, add_friend
 from arc_companion.steam import openid_auth
 from arc_companion.storage.local_credentials import LocalCredentials, LocalCredentialsStore
+from arc_companion.storage.supabase_session import SupabaseSessionStore
 
 
 class SettingsDialog(ctk.CTkToplevel):
@@ -17,6 +22,8 @@ class SettingsDialog(ctk.CTkToplevel):
         friend_ids: list[str],
         on_friends_changed: Callable[[list[str]], None],
         on_steam_linked: Callable[[str], None],
+        cloud_client: Client,
+        cloud_session_store: SupabaseSessionStore,
     ):
         super().__init__(master)
         self.title("Settings")
@@ -31,7 +38,10 @@ class SettingsDialog(ctk.CTkToplevel):
         self.on_friends_changed = on_friends_changed
         self.on_steam_linked = on_steam_linked
         self.credentials_store = LocalCredentialsStore()
+        self.cloud_client = cloud_client
+        self.cloud_session_store = cloud_session_store
         self._cancel_login: Callable[[], None] | None = None
+        self._wipe_in_flight = False
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -277,19 +287,66 @@ class SettingsDialog(ctk.CTkToplevel):
         key = self.api_key_entry.get().strip()
         self.credentials_store.save(LocalCredentials(steam_web_api_key=key or None))
 
-    # ---- Wipe cloud data (placeholder) -------------------------------------------
+    # ---- Wipe cloud data ---------------------------------------------------------
 
     def _build_wipe_section(self) -> None:
         frame = ctk.CTkFrame(self.body, fg_color="transparent")
         frame.grid(row=3, column=0, padx=24, pady=(10, 20), sticky="ew")
-        ctk.CTkButton(
+        self.wipe_button = ctk.CTkButton(
             frame,
             text="Wipe Cloud Data",
             fg_color="#2B2B2B",
             border_width=1,
             border_color="#555555",
-            state="disabled",
-        ).grid(row=0, column=0, sticky="w")
-        ctk.CTkLabel(frame, text="Available once cloud sync is set up.", text_color="gray").grid(
-            row=1, column=0, sticky="w", pady=(4, 0)
+            command=self._on_wipe_clicked,
         )
+        self.wipe_button.grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(
+            frame,
+            text="Clears your synced blueprint data from the cloud. Your Goblin ID and local "
+            "collection on this device aren't affected.",
+            text_color="gray",
+            wraplength=480,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self.wipe_status_msg = ctk.CTkLabel(
+            frame, text="", text_color="gray", wraplength=480, justify="left"
+        )
+        self.wipe_status_msg.grid(row=2, column=0, sticky="w", pady=(6, 0))
+
+    def _on_wipe_clicked(self) -> None:
+        if self._wipe_in_flight:
+            return
+        if not messagebox.askyesno(
+            "Wipe Cloud Data",
+            "This clears your synced blueprint data from the cloud (arbg_user_id and any "
+            "linked SteamID stay associated with your profile row). Your local collection on "
+            "this device is not affected. Continue?",
+            parent=self,
+        ):
+            return
+
+        self._wipe_in_flight = True
+        self.wipe_button.configure(state="disabled")
+        self.wipe_status_msg.configure(text="Wiping...", text_color="gray")
+
+        def worker() -> None:
+            try:
+                user_id = ensure_session(self.cloud_client, self.cloud_session_store)
+                wipe_cloud_data(self.cloud_client, user_id)
+            except Exception:
+                self.after(0, lambda: self._on_wipe_finished(success=False))
+            else:
+                self.after(0, lambda: self._on_wipe_finished(success=True))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_wipe_finished(self, success: bool) -> None:
+        self._wipe_in_flight = False
+        self.wipe_button.configure(state="normal")
+        if success:
+            self.wipe_status_msg.configure(text="Cloud data wiped.", text_color="#81C784")
+        else:
+            self.wipe_status_msg.configure(
+                text="Wipe failed — check your connection.", text_color="#E57373"
+            )

@@ -35,9 +35,8 @@ class ActionBar(ctk.CTkFrame):
         self._on_sync = on_sync
         self._on_scan = on_scan
 
-        # Honest for Phase 1: there is no cloud yet, so this doesn't claim one exists
         self.status_label = ctk.CTkLabel(
-            self, text="Storage: Local (config.json)", text_color="#4CAF50"
+            self, text="Storage: Local + Cloud (Supabase)", text_color="#4CAF50"
         )
         self.status_label.grid(row=0, column=0, padx=20, pady=15, sticky="w")
 
@@ -58,6 +57,9 @@ class ActionBar(ctk.CTkFrame):
 
     def set_dirty(self, dirty: bool) -> None:
         self.btn_sync.configure(**(_SYNC_DIRTY_STYLE if dirty else _SYNC_IDLE_STYLE))
+
+    def set_sync_status(self, text: str, color: str) -> None:
+        self.status_label.configure(text=text, text_color=color)
 
     def _handle_sync_click(self) -> None:
         if self._on_sync is not None:

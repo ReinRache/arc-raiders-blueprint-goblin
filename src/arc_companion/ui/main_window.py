@@ -1,8 +1,14 @@
+import dataclasses
+import threading
+
 import customtkinter as ctk
 
+from arc_companion.cloud.client import create_supabase_client
+from arc_companion.cloud.sync import ensure_session, push_profile
 from arc_companion.data.blueprints import load_blueprints
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
 from arc_companion.storage.local_store import LocalJSONStore
+from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.action_bar import ActionBar
 from arc_companion.ui.blueprint_grid import CELL_SIZE, BlueprintGrid
 from arc_companion.ui.scan_dialog import ScanDialog
@@ -49,6 +55,13 @@ class MainWindow(ctk.CTk):
 
         self.blueprints = load_blueprints()
         self.total_blueprints = len(self.blueprints)
+
+        # Creating the client is a local no-op (no network call) -- the
+        # actual anonymous sign-in only happens lazily, inside ensure_session,
+        # the first time the user clicks Sync or Wipe Cloud Data.
+        self.cloud_client = create_supabase_client()
+        self.cloud_session_store = SupabaseSessionStore()
+        self._sync_in_flight = False
 
         self.grid_columnconfigure(0, weight=0, minsize=220)
         self.grid_columnconfigure(1, weight=1)
@@ -131,11 +144,38 @@ class MainWindow(ctk.CTk):
         self.action_bar.set_dirty(True)
 
     def _on_sync_clicked(self) -> None:
-        # No remote store exists yet (Phase 3 adds one). For now this just
-        # acknowledges the pending local changes so the button dims again;
-        # once there's a cloud Store this is where the actual push call goes.
-        self.dirty = False
-        self.action_bar.set_dirty(False)
+        if self._sync_in_flight:
+            return
+        self._sync_in_flight = True
+        self.action_bar.btn_sync.configure(state="disabled")
+        self.action_bar.set_sync_status("Syncing...", "#4CAF50")
+
+        # Snapshot now, on the Tk thread, rather than reading self.user_state
+        # from the background thread -- avoids pushing a state that's half
+        # old/half new if the user clicks a card again while the network
+        # call is in flight.
+        state_snapshot = dataclasses.replace(self.user_state)
+
+        def worker() -> None:
+            try:
+                user_id = ensure_session(self.cloud_client, self.cloud_session_store)
+                push_profile(self.cloud_client, user_id, state_snapshot)
+            except Exception:
+                self.after(0, lambda: self._on_sync_finished(success=False))
+            else:
+                self.after(0, lambda: self._on_sync_finished(success=True))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_sync_finished(self, success: bool) -> None:
+        self._sync_in_flight = False
+        if success:
+            self.dirty = False
+            self.action_bar.set_dirty(False)
+            self.action_bar.set_sync_status("Storage: Local + Cloud (Supabase) — Synced", "#4CAF50")
+        else:
+            self.action_bar.btn_sync.configure(state="normal")
+            self.action_bar.set_sync_status("Sync failed — check your connection", "#E57373")
 
     def _on_scan_clicked(self) -> None:
         ScanDialog(
@@ -174,6 +214,8 @@ class MainWindow(ctk.CTk):
             friend_ids=self.user_state.arbg_friend_user_ids,
             on_friends_changed=self._on_friends_changed,
             on_steam_linked=self._on_steam_linked,
+            cloud_client=self.cloud_client,
+            cloud_session_store=self.cloud_session_store,
         )
 
     def _on_friends_changed(self, friend_ids: list[str]) -> None:
