@@ -5,11 +5,19 @@ import customtkinter as ctk
 from PIL import Image
 
 from arc_companion.data.blueprints import Blueprint
+from arc_companion.domain.friends import FriendStatusCounts, Highlight, compute_highlight
 from arc_companion.domain.status import BlueprintStatus
+from arc_companion.ui.theme import HIGHLIGHT_COLORS, STATUS_COLORS
+from arc_companion.ui.tooltip import Tooltip
 
 _ICON_SIZE = (60, 60)
 _CARD_WIDTH = 140
-_CARD_HEIGHT = 145
+# Grew from 145 to fit the new friends-overlay row (icon + 4 status dots)
+# below the existing status button -- provisional pending direct
+# winfo_height() re-measurement against a live window (see CLAUDE.md's
+# existing notes on why this grid's sizing constants are always measured,
+# never just computed).
+_CARD_HEIGHT = 172
 _CARD_GAP = 8
 _NAME_WIDTH = 122
 _MAX_COLUMNS = 10
@@ -44,14 +52,6 @@ def _load_icon(blueprint: Blueprint) -> ctk.CTkImage | None:
     return ctk.CTkImage(light_image=image, dark_image=image, size=_ICON_SIZE)
 
 
-_STATUS_STYLE = {
-    BlueprintStatus.UNOWNED: ("Unowned", "#333333", "#444444"),
-    BlueprintStatus.OWNED: ("Owned", "#2E7D32", "#388E3C"),
-    BlueprintStatus.WANT: ("Want", "#C62828", "#D32F2F"),
-    BlueprintStatus.HAVE: ("Have", "#1565C0", "#1976D2"),
-}
-
-
 class BlueprintCard(ctk.CTkFrame):
     # This card's own children use grid() — fine, since that's a small,
     # isolated 1-column/3-row grid local to this single frame, not shared or
@@ -65,10 +65,14 @@ class BlueprintCard(ctk.CTkFrame):
         status: BlueprintStatus,
         on_cycle: Callable[[int], None],
         icon: ctk.CTkImage | None,
+        friend_counts: FriendStatusCounts,
+        highlight: Highlight,
     ):
         super().__init__(master, width=_CARD_WIDTH, height=_CARD_HEIGHT, corner_radius=6)
         self.grid_propagate(False)
         self.blueprint = blueprint
+        self._status = status
+        self._friend_counts = friend_counts
 
         if icon is not None:
             self._icon = icon  # keep a reference alive; Tk drops images with no referrer
@@ -101,11 +105,41 @@ class BlueprintCard(ctk.CTkFrame):
             command=lambda: on_cycle(self.blueprint.id),
         )
         self.status_btn.grid(row=2, column=0, padx=10, pady=(2, 4))
+
+        # Friends overlay row: a small icon + one dot per BlueprintStatus,
+        # each showing how many active friends are in that state and, on
+        # hover, listing their names.
+        friends_row = ctk.CTkFrame(self, fg_color="transparent")
+        friends_row.grid(row=3, column=0, padx=6, pady=(0, 6))
+        ctk.CTkLabel(friends_row, text="\U0001F465", font=ctk.CTkFont(size=11)).grid(
+            row=0, column=0, padx=(0, 4)
+        )
+        self._dot_labels: dict[BlueprintStatus, ctk.CTkLabel] = {}
+        for i, dot_status in enumerate(BlueprintStatus, start=1):
+            _, fg, _ = STATUS_COLORS[dot_status]
+            dot = ctk.CTkLabel(friends_row, text="●0", font=ctk.CTkFont(size=11), text_color=fg)
+            dot.grid(row=0, column=i, padx=2)
+            Tooltip(dot, (lambda s=dot_status: self._tooltip_text_for(s)))
+            self._dot_labels[dot_status] = dot
+
         self.set_status(status)
+        self.set_friend_overlay(friend_counts, highlight)
+
+    def _tooltip_text_for(self, status: BlueprintStatus) -> str:
+        return "\n".join(self._friend_counts.for_status(status))
 
     def set_status(self, status: BlueprintStatus) -> None:
-        text, color, hover = _STATUS_STYLE[status]
+        self._status = status
+        text, color, hover = STATUS_COLORS[status]
         self.status_btn.configure(text=text, fg_color=color, hover_color=hover)
+
+    def set_friend_overlay(self, friend_counts: FriendStatusCounts, highlight: Highlight) -> None:
+        self._friend_counts = friend_counts
+        for dot_status, label in self._dot_labels.items():
+            count = len(friend_counts.for_status(dot_status))
+            label.configure(text=f"●{count}")
+        border_width, border_color = HIGHLIGHT_COLORS[highlight]
+        self.configure(border_width=border_width, border_color=border_color)
 
 
 # Public (no leading underscore): main_window.py uses this to size the
@@ -125,12 +159,14 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         blueprints: list[Blueprint],
         status_for_id: Callable[[int], BlueprintStatus],
         on_cycle: Callable[[int], None],
+        friend_counts_for_id: Callable[[int], FriendStatusCounts],
         **kwargs,
     ):
         super().__init__(master, **kwargs)
         self.blueprints = blueprints
         self.status_for_id = status_for_id
         self.on_cycle = on_cycle
+        self.friend_counts_for_id = friend_counts_for_id
         self.cards: dict[int, BlueprintCard] = {}
         self._icon_cache: dict[int, ctk.CTkImage | None] = {}
         self._search_query = ""
@@ -189,8 +225,20 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         self.render()
 
     def refresh_status(self, blueprint_id: int) -> None:
+        # My own status is itself an input to compute_highlight(), so a
+        # status change needs the overlay recomputed too, not just re-styled.
         if blueprint_id in self.cards:
             self.cards[blueprint_id].set_status(self.status_for_id(blueprint_id))
+            self._refresh_card_overlay(blueprint_id)
+
+    def refresh_friend_overlay(self) -> None:
+        for blueprint_id in self.cards:
+            self._refresh_card_overlay(blueprint_id)
+
+    def _refresh_card_overlay(self, blueprint_id: int) -> None:
+        counts = self.friend_counts_for_id(blueprint_id)
+        highlight = compute_highlight(self.status_for_id(blueprint_id), counts)
+        self.cards[blueprint_id].set_friend_overlay(counts, highlight)
 
     def _get_icon(self, blueprint: Blueprint) -> ctk.CTkImage | None:
         if blueprint.id not in self._icon_cache:
@@ -228,8 +276,16 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         cell_h = _CARD_HEIGHT + _CARD_GAP
         for index, bp in enumerate(visible):
             if bp.id not in self.cards:
+                status = self.status_for_id(bp.id)
+                counts = self.friend_counts_for_id(bp.id)
                 self.cards[bp.id] = BlueprintCard(
-                    self, bp, self.status_for_id(bp.id), self.on_cycle, self._get_icon(bp)
+                    self,
+                    bp,
+                    status,
+                    self.on_cycle,
+                    self._get_icon(bp),
+                    counts,
+                    compute_highlight(status, counts),
                 )
             row, col = divmod(index, self.columns)
             # width/height are NOT passed here — CTkBaseClass.place() rejects

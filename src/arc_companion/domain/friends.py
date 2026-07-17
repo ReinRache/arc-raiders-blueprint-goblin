@@ -1,0 +1,99 @@
+from dataclasses import dataclass, field
+from enum import Enum, auto
+
+from arc_companion.domain.status import BlueprintStatus, status_for
+from arc_companion.storage.friends_cache import FriendProfileSnapshot
+
+
+@dataclass
+class FriendStatusCounts:
+    # Each list holds arbg_user_ids of active friends in that status for one
+    # blueprint -- the list IS the tooltip content, len() is the dot count.
+    unowned: list[str] = field(default_factory=list)
+    want: list[str] = field(default_factory=list)
+    owned: list[str] = field(default_factory=list)
+    have: list[str] = field(default_factory=list)
+
+    def for_status(self, status: BlueprintStatus) -> list[str]:
+        return {
+            BlueprintStatus.UNOWNED: self.unowned,
+            BlueprintStatus.WANT: self.want,
+            BlueprintStatus.OWNED: self.owned,
+            BlueprintStatus.HAVE: self.have,
+        }[status]
+
+
+def friend_status_counts_for(
+    blueprint_id: int, active_snapshots: list[FriendProfileSnapshot]
+) -> FriendStatusCounts:
+    counts = FriendStatusCounts()
+    for snapshot in active_snapshots:
+        status = status_for(
+            blueprint_id,
+            set(snapshot.blueprints_owned),
+            set(snapshot.blueprints_wanted),
+            set(snapshot.blueprints_spare),
+        )
+        if status == BlueprintStatus.UNOWNED:
+            counts.unowned.append(snapshot.arbg_user_id)
+        elif status == BlueprintStatus.WANT:
+            counts.want.append(snapshot.arbg_user_id)
+        elif status == BlueprintStatus.OWNED:
+            counts.owned.append(snapshot.arbg_user_id)
+        elif status == BlueprintStatus.HAVE:
+            counts.have.append(snapshot.arbg_user_id)
+    return counts
+
+
+class Highlight(Enum):
+    NONE = auto()
+    THIN_GREEN = auto()
+    THICK_GREEN = auto()
+    THIN_CYAN = auto()
+    THICK_CYAN = auto()
+
+
+def compute_highlight(my_status: BlueprintStatus, counts: FriendStatusCounts) -> Highlight:
+    # My own status alone selects the color family (green = "a friend has one
+    # I might want", cyan = "I could give mine away") -- the two families are
+    # mutually exclusive since a tile has exactly one of my 4 statuses.
+    if my_status == BlueprintStatus.WANT:
+        return Highlight.THICK_GREEN if counts.have else Highlight.NONE
+    if my_status == BlueprintStatus.UNOWNED:
+        return Highlight.THIN_GREEN if counts.have else Highlight.NONE
+    if my_status == BlueprintStatus.HAVE:
+        if counts.want:
+            return Highlight.THICK_CYAN
+        if counts.unowned:
+            return Highlight.THIN_CYAN
+        return Highlight.NONE
+    return Highlight.NONE  # OWNED never highlights -- a kept copy isn't shareable
+
+
+def reconcile_active_friends(
+    new_friend_ids: list[str], previous_friend_ids: list[str], previous_active_ids: list[str]
+) -> list[str]:
+    """Previously-active IDs stay active, newly-appeared IDs default to
+    active, IDs no longer in the roster are dropped. Needs the *previous*
+    roster (not just the previous active set) to tell "existing friend
+    toggled off" apart from "brand new friend" -- both look like "not in
+    previous_active_ids" otherwise. Operates on the full roster regardless of
+    cloud-cache presence, so a friend's on/off preference is already correct
+    the moment they first become visible."""
+    previously_known = set(previous_friend_ids)
+    previously_active = set(previous_active_ids)
+    return [
+        fid
+        for fid in new_friend_ids
+        if fid not in previously_known or fid in previously_active
+    ]
+
+
+def visible_friend_ids(friend_ids: list[str], cache: dict[str, FriendProfileSnapshot]) -> list[str]:
+    """Order-preserving filter down to friends that actually exist as a row
+    in the cache (resolved successfully at least once via
+    fetch_friend_profiles). A roster entry that's never been confirmed to
+    exist -- hasn't synced yet, a mistyped/invalid Goblin ID, or a future
+    Steam-imported friend never given a real Goblin ID -- doesn't show up
+    here; Settings remains the place to manage the full roster."""
+    return [fid for fid in friend_ids if fid in cache]

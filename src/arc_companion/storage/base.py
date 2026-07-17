@@ -7,10 +7,17 @@ class UserState:
     arbg_user_id: str
     steam_id: str | None = None  # populated only if/when the user links Steam
     arbg_friend_user_ids: list[str] = field(default_factory=list)
+    # Which friends are currently checked "on" for the grid's friend overlay
+    # (see domain/friends.py). Local-only, like arbg_friend_user_ids itself --
+    # never included in push_profile's payload.
+    arbg_active_friend_ids: list[str] = field(default_factory=list)
     blueprints_owned: list[int] = field(default_factory=list)
     blueprints_wanted: list[int] = field(default_factory=list)
     blueprints_spare: list[int] = field(default_factory=list)
     updated_at: int = 0
+    # Epoch seconds of the last successful cloud sync; None means never
+    # synced. Distinct from updated_at, which bumps on every local edit.
+    last_synced_at: int | None = None
 
 
 class Store(ABC):

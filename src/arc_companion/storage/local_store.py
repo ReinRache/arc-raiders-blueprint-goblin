@@ -34,10 +34,12 @@ class LocalJSONStore(Store):
             arbg_user_id=arbg_user_id,
             steam_id=steam_id,
             arbg_friend_user_ids=data.get("arbg_friend_user_ids", []),
+            arbg_active_friend_ids=data.get("arbg_active_friend_ids", []),
             blueprints_owned=data.get("blueprints_owned", []),
             blueprints_wanted=data.get("blueprints_wanted", []),
             blueprints_spare=data.get("blueprints_spare", []),
             updated_at=data.get("updated_at", 0),
+            last_synced_at=data.get("last_synced_at"),
         )
 
     def save_state(self, state: UserState) -> None:
@@ -48,10 +50,12 @@ class LocalJSONStore(Store):
                     "arbg_user_id": state.arbg_user_id,
                     "steam_id": state.steam_id,
                     "arbg_friend_user_ids": state.arbg_friend_user_ids,
+                    "arbg_active_friend_ids": state.arbg_active_friend_ids,
                     "blueprints_owned": state.blueprints_owned,
                     "blueprints_wanted": state.blueprints_wanted,
                     "blueprints_spare": state.blueprints_spare,
                     "updated_at": state.updated_at,
+                    "last_synced_at": state.last_synced_at,
                 },
                 indent=2,
             ),

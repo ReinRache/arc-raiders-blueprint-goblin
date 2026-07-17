@@ -4,6 +4,7 @@ __pycache__/
 config.json
 credentials.json
 supabase_session.json
+friends_cache.json
 dist/
 build/
 *.spec

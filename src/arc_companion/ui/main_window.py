@@ -1,28 +1,34 @@
 import dataclasses
 import threading
+import time
 
 import customtkinter as ctk
 
 from arc_companion.cloud.client import create_supabase_client
+from arc_companion.cloud.friends import fetch_friend_profiles
 from arc_companion.cloud.sync import ensure_session, push_profile
 from arc_companion.data.blueprints import load_blueprints
+from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
+from arc_companion.storage.friends_cache import FriendProfileSnapshot, FriendsCacheStore
 from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.action_bar import ActionBar
 from arc_companion.ui.blueprint_grid import CELL_SIZE, BlueprintGrid
+from arc_companion.ui.manage_friends_dialog import ManageFriendsDialog
 from arc_companion.ui.scan_dialog import ScanDialog
 from arc_companion.ui.settings_dialog import SettingsDialog
-from arc_companion.ui.sidebar import Sidebar
+from arc_companion.ui.sidebar import SIDEBAR_WIDTH, Sidebar
 
-# Gap between the window's width and the blueprint grid's actual usable
-# (canvas) width: sidebar (220px, set below) + main_view horizontal padding
-# (40px, 20 each side) + CTkScrollableFrame's vertical scrollbar (~16px) + a
-# small internal border-radius allowance (~7px). Not derived from a formula
-# CTk exposes — measured directly via winfo_width() at runtime. Keep this in
-# sync if the sidebar width or main_view padding changes below, or the
+# Non-sidebar portion of the gap between the window's width and the
+# blueprint grid's actual usable (canvas) width: main_view horizontal
+# padding (40px, 20 each side) + CTkScrollableFrame's vertical scrollbar
+# (~16px) + a small internal border-radius allowance (~7px). Not derived
+# from a formula CTk exposes — measured directly via winfo_width() at
+# runtime. Keep this in sync if main_view padding changes below, or the
 # "snug fit" window sizes will start showing slack again.
-_GRID_OVERHEAD_PX = 283
+_NON_SIDEBAR_OVERHEAD_PX = 63
+_GRID_OVERHEAD_PX = SIDEBAR_WIDTH + _NON_SIDEBAR_OVERHEAD_PX
 _DEFAULT_COLUMNS = 10
 _MIN_COLUMNS = 4
 
@@ -63,13 +69,25 @@ class MainWindow(ctk.CTk):
         self.cloud_session_store = SupabaseSessionStore()
         self._sync_in_flight = False
 
-        self.grid_columnconfigure(0, weight=0, minsize=220)
+        # Cache read is local-disk, not network -- fine to do eagerly on
+        # launch, unlike the actual cloud fetch (only ever triggered by Sync).
+        self.friends_cache_store = FriendsCacheStore()
+        self.friends_cache: dict[str, FriendProfileSnapshot] = self.friends_cache_store.load()
+
+        self.grid_columnconfigure(0, weight=0, minsize=SIDEBAR_WIDTH)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
         self.grid_rowconfigure(1, weight=0, minsize=60)
 
         self.sidebar = Sidebar(
-            self, total_blueprints=self.total_blueprints, on_settings=self._on_settings_clicked
+            self,
+            total_blueprints=self.total_blueprints,
+            friend_ids=self.user_state.arbg_friend_user_ids,
+            active_friend_ids=self.user_state.arbg_active_friend_ids,
+            friends_cache=self.friends_cache,
+            on_manage_friends=self._on_manage_friends_clicked,
+            on_settings=self._on_settings_clicked,
+            on_active_friends_changed=self._on_active_friends_changed,
         )
         self.sidebar.grid(row=0, column=0, rowspan=2, sticky="nsew")
 
@@ -82,12 +100,36 @@ class MainWindow(ctk.CTk):
         self.header_frame.grid(row=0, column=0, pady=(0, 15), sticky="ew")
         self.header_frame.grid_columnconfigure(0, weight=1)
 
-        self.view_title = ctk.CTkLabel(
-            self.header_frame,
-            text=self._header_text(),
-            font=ctk.CTkFont(size=24, weight="bold"),
+        # Split into multiple widgets (rather than one label string) because
+        # "Copy ID" needs to be its own clickable widget.
+        title_font = ctk.CTkFont(size=24, weight="bold")
+        self.title_row = ctk.CTkFrame(self.header_frame, fg_color="transparent")
+        self.title_row.grid(row=0, column=0, sticky="w")
+
+        self.title_prefix_label = ctk.CTkLabel(self.title_row, text="Blueprint Database | ", font=title_font)
+        self.title_prefix_label.grid(row=0, column=0, sticky="w")
+
+        # Steam persona-name resolution isn't built yet (Stage C explicitly
+        # deferred it) -- this always shows the Goblin ID for now, but is its
+        # own label so a resolved Steam name can replace it later without
+        # touching the surrounding layout.
+        self.title_name_label = ctk.CTkLabel(self.title_row, text=self._display_name(), font=title_font)
+        self.title_name_label.grid(row=0, column=1, sticky="w")
+
+        # A real button, not a text hyperlink -- matches the "Copy" button
+        # style already used in manage_friends_dialog.py's Goblin ID section
+        # rather than the underlined-label link style used for the Steam API
+        # key URL (that one opens an external page; this one is a same-app
+        # action, closer in spirit to a normal button).
+        self.title_copy_button = ctk.CTkButton(
+            self.title_row, text="Copy ID", width=90, command=self._copy_own_id
         )
-        self.view_title.grid(row=0, column=0, sticky="w")
+        self.title_copy_button.grid(row=0, column=2, padx=(8, 0), sticky="w")
+
+        self.title_suffix_label = ctk.CTkLabel(
+            self.title_row, text=self._collection_suffix(), font=title_font
+        )
+        self.title_suffix_label.grid(row=0, column=3, sticky="w")
 
         self.filter_frame = ctk.CTkFrame(self.main_view, fg_color="transparent")
         self.filter_frame.grid(row=1, column=0, pady=(0, 15), sticky="ew")
@@ -107,18 +149,35 @@ class MainWindow(ctk.CTk):
             blueprints=self.blueprints,
             status_for_id=self._status_for_id,
             on_cycle=self._on_cycle,
+            friend_counts_for_id=self._friend_counts_for_id,
         )
         self.grid_view.grid(row=2, column=0, sticky="nsew")
 
         self.dirty = False
         self.action_bar = ActionBar(self, on_sync=self._on_sync_clicked, on_scan=self._on_scan_clicked)
         self.action_bar.grid(row=1, column=1, sticky="ew")
+        self.action_bar.set_last_synced_at(self.user_state.last_synced_at)
 
     def _status_for_id(self, blueprint_id: int) -> BlueprintStatus:
         return status_for(blueprint_id, self.owned_ids, self.wanted_ids, self.spare_ids)
 
-    def _header_text(self) -> str:
-        return f"Blueprint Database | {len(self.owned_ids)}/{self.total_blueprints} Collected"
+    def _friend_counts_for_id(self, blueprint_id: int) -> FriendStatusCounts:
+        active_snapshots = [
+            self.friends_cache[fid]
+            for fid in self.user_state.arbg_active_friend_ids
+            if fid in self.friends_cache
+        ]
+        return friend_status_counts_for(blueprint_id, active_snapshots)
+
+    def _display_name(self) -> str:
+        return self.user_state.arbg_user_id
+
+    def _collection_suffix(self) -> str:
+        return f" Collection {len(self.owned_ids)}/{self.total_blueprints}"
+
+    def _copy_own_id(self) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(self.user_state.arbg_user_id)
 
     def _on_search_changed(self, *args) -> None:
         self.grid_view.set_search_query(self.search_var.get())
@@ -137,8 +196,7 @@ class MainWindow(ctk.CTk):
         self.store.save_state(self.user_state)
 
         self.grid_view.refresh_status(blueprint_id)
-        self.view_title.configure(text=self._header_text())
-        self.sidebar.set_owned_count(len(self.owned_ids))
+        self.title_suffix_label.configure(text=self._collection_suffix())
 
         self.dirty = True
         self.action_bar.set_dirty(True)
@@ -148,7 +206,7 @@ class MainWindow(ctk.CTk):
             return
         self._sync_in_flight = True
         self.action_bar.btn_sync.configure(state="disabled")
-        self.action_bar.set_sync_status("Syncing...", "#4CAF50")
+        self.action_bar.set_sync_status("Syncing & refreshing friends...", "#4CAF50")
 
         # Snapshot now, on the Tk thread, rather than reading self.user_state
         # from the background thread -- avoids pushing a state that's half
@@ -162,20 +220,55 @@ class MainWindow(ctk.CTk):
                 push_profile(self.cloud_client, user_id, state_snapshot)
             except Exception:
                 self.after(0, lambda: self._on_sync_finished(success=False))
-            else:
-                self.after(0, lambda: self._on_sync_finished(success=True))
+                return
+
+            # A friend-fetch failure shouldn't undo a successful push -- the
+            # overlay just doesn't refresh this time, nothing is lost.
+            friend_snapshots: dict[str, FriendProfileSnapshot] | None = None
+            try:
+                rows = fetch_friend_profiles(self.cloud_client, state_snapshot.arbg_friend_user_ids)
+                friend_snapshots = {
+                    row["arbg_user_id"]: FriendProfileSnapshot(
+                        arbg_user_id=row["arbg_user_id"],
+                        steam_id=row.get("steam_id"),
+                        blueprints_owned=row.get("blueprints_owned", []),
+                        blueprints_wanted=row.get("blueprints_wanted", []),
+                        blueprints_spare=row.get("blueprints_spare", []),
+                    )
+                    for row in rows
+                }
+            except Exception:
+                friend_snapshots = None
+
+            self.after(0, lambda: self._on_sync_finished(success=True, friend_snapshots=friend_snapshots))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_sync_finished(self, success: bool) -> None:
+    def _on_sync_finished(
+        self, success: bool, friend_snapshots: dict[str, FriendProfileSnapshot] | None = None
+    ) -> None:
         self._sync_in_flight = False
-        if success:
-            self.dirty = False
-            self.action_bar.set_dirty(False)
-            self.action_bar.set_sync_status("Storage: Local + Cloud (Supabase) — Synced", "#4CAF50")
-        else:
+        if not success:
             self.action_bar.btn_sync.configure(state="normal")
             self.action_bar.set_sync_status("Sync failed — check your connection", "#E57373")
+            return
+
+        self.dirty = False
+        self.action_bar.set_dirty(False)
+        self.user_state.last_synced_at = int(time.time())
+        self.store.save_state(self.user_state)
+        self.action_bar.set_last_synced_at(self.user_state.last_synced_at)
+        self.action_bar.set_sync_status("Storage: Local + Cloud (Supabase) — Synced", "#4CAF50")
+
+        if friend_snapshots is not None:
+            self.friends_cache = friend_snapshots
+            self.friends_cache_store.save(self.friends_cache)
+            self.grid_view.refresh_friend_overlay()
+            self.sidebar.update_friends(
+                self.user_state.arbg_friend_user_ids,
+                self.user_state.arbg_active_friend_ids,
+                self.friends_cache,
+            )
 
     def _on_scan_clicked(self) -> None:
         ScanDialog(
@@ -200,27 +293,49 @@ class MainWindow(ctk.CTk):
         # no icon reload or re-layout.
         for bp in self.blueprints:
             self.grid_view.refresh_status(bp.id)
-        self.view_title.configure(text=self._header_text())
-        self.sidebar.set_owned_count(len(self.owned_ids))
+        self.title_suffix_label.configure(text=self._collection_suffix())
 
         self.dirty = True
         self.action_bar.set_dirty(True)
 
-    def _on_settings_clicked(self) -> None:
-        SettingsDialog(
+    def _on_manage_friends_clicked(self) -> None:
+        ManageFriendsDialog(
             self,
             arbg_user_id=self.user_state.arbg_user_id,
             steam_id=self.user_state.steam_id,
             friend_ids=self.user_state.arbg_friend_user_ids,
             on_friends_changed=self._on_friends_changed,
             on_steam_linked=self._on_steam_linked,
-            cloud_client=self.cloud_client,
-            cloud_session_store=self.cloud_session_store,
         )
 
+    def _on_settings_clicked(self) -> None:
+        SettingsDialog(self, cloud_client=self.cloud_client, cloud_session_store=self.cloud_session_store)
+
     def _on_friends_changed(self, friend_ids: list[str]) -> None:
+        previous_friend_ids = self.user_state.arbg_friend_user_ids
+        previous_active_ids = self.user_state.arbg_active_friend_ids
         self.user_state.arbg_friend_user_ids = friend_ids
+        self.user_state.arbg_active_friend_ids = reconcile_active_friends(
+            friend_ids, previous_friend_ids, previous_active_ids
+        )
+        # Drop any cache entry for a friend that's no longer in the roster --
+        # matches the immediate-effect expectation from Settings' add/remove,
+        # rather than waiting for the next sync to prune it.
+        self.friends_cache = {fid: snap for fid, snap in self.friends_cache.items() if fid in friend_ids}
+        self.friends_cache_store.save(self.friends_cache)
         self.store.save_state(self.user_state)
+
+        self.sidebar.update_friends(
+            self.user_state.arbg_friend_user_ids,
+            self.user_state.arbg_active_friend_ids,
+            self.friends_cache,
+        )
+        self.grid_view.refresh_friend_overlay()
+
+    def _on_active_friends_changed(self, active_ids: list[str]) -> None:
+        self.user_state.arbg_active_friend_ids = active_ids
+        self.store.save_state(self.user_state)
+        self.grid_view.refresh_friend_overlay()
 
     def _on_steam_linked(self, steam_id: str) -> None:
         self.user_state.steam_id = steam_id
