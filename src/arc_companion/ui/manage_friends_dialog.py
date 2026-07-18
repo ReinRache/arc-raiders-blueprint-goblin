@@ -1,10 +1,15 @@
+import threading
 import webbrowser
 from collections.abc import Callable
 
 import customtkinter as ctk
+from supabase import Client
 
+from arc_companion.cloud.friends import fetch_profiles_by_steam_ids
+from arc_companion.domain.friends import discoverable_steam_friends
 from arc_companion.identity import AddFriendError, add_friend
 from arc_companion.steam import openid_auth
+from arc_companion.steam.web_api import SteamFriendsListPrivateError, get_friend_list, get_player_summaries
 from arc_companion.storage.local_credentials import LocalCredentials, LocalCredentialsStore
 
 
@@ -17,6 +22,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         friend_ids: list[str],
         on_friends_changed: Callable[[list[str]], None],
         on_steam_linked: Callable[[str], None],
+        cloud_client: Client,
     ):
         super().__init__(master)
         self.title("Manage Friends")
@@ -30,8 +36,13 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.friend_ids = list(friend_ids)
         self.on_friends_changed = on_friends_changed
         self.on_steam_linked = on_steam_linked
+        self.cloud_client = cloud_client
         self.credentials_store = LocalCredentialsStore()
         self._cancel_login: Callable[[], None] | None = None
+        self._discover_in_flight = False
+        self._discover_candidates: list[dict] = []
+        self._discover_checkbox_vars: dict[str, ctk.BooleanVar] = {}
+        self._discover_names: dict[str, str] = {}
 
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
@@ -48,6 +59,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self._build_goblin_id_section()
         self._build_friends_section()
         self._build_steam_section()
+        self._build_discover_steam_friends_section()
 
     # ---- Goblin ID -----------------------------------------------------------
 
@@ -235,6 +247,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
             self.steam_status_label.configure(text="Not linked", text_color="gray")
             self.steam_button.configure(text="Link Steam Account")
         self._update_steam_button_state()
+        self._refresh_discover_button_state()
 
     def _update_steam_button_state(self) -> None:
         if self._cancel_login is not None:
@@ -274,3 +287,162 @@ class ManageFriendsDialog(ctk.CTkToplevel):
     def _on_save_api_key(self) -> None:
         key = self.api_key_entry.get().strip()
         self.credentials_store.save(LocalCredentials(steam_web_api_key=key or None))
+        self._refresh_discover_button_state()
+
+    # ---- Discover Steam friends ---------------------------------------------------
+
+    def _build_discover_steam_friends_section(self) -> None:
+        frame = ctk.CTkFrame(self.body, fg_color="transparent")
+        frame.grid(row=3, column=0, padx=24, pady=(10, 20), sticky="ew")
+        frame.grid_columnconfigure(0, weight=1)
+
+        ctk.CTkLabel(
+            frame, text="Discover Steam Friends", font=ctk.CTkFont(size=16, weight="bold")
+        ).grid(row=0, column=0, sticky="w")
+        ctk.CTkLabel(
+            frame,
+            text="Find friends from your real Steam friends list who are also using this app. "
+            "Requires Steam to be linked and a Web API key saved above.",
+            text_color="gray",
+            wraplength=480,
+            justify="left",
+        ).grid(row=1, column=0, sticky="w", pady=(0, 8))
+
+        self.discover_button = ctk.CTkButton(
+            frame, text="Find Steam Friends", command=self._on_discover_clicked
+        )
+        self.discover_button.grid(row=2, column=0, sticky="w")
+
+        self.discover_status_msg = ctk.CTkLabel(
+            frame, text="", text_color="gray", wraplength=480, justify="left"
+        )
+        self.discover_status_msg.grid(row=3, column=0, sticky="w", pady=(6, 0))
+
+        self.discover_results_frame = ctk.CTkFrame(frame, fg_color="transparent")
+        self.discover_results_frame.grid(row=4, column=0, sticky="ew", pady=(4, 0))
+
+        self.discover_add_button = ctk.CTkButton(
+            frame, text="Add Selected", command=self._on_add_selected_clicked
+        )
+        # Only gridded once there are results -- see _render_discover_results.
+
+        self._refresh_discover_button_state()
+
+    def _refresh_discover_button_state(self) -> None:
+        if not hasattr(self, "discover_button") or self._discover_in_flight:
+            return
+        api_key = self.credentials_store.load().steam_web_api_key
+        self.discover_button.configure(state="normal" if (self.steam_id and api_key) else "disabled")
+
+    def _on_discover_clicked(self) -> None:
+        if self._discover_in_flight:
+            return
+        api_key = self.credentials_store.load().steam_web_api_key
+        if not self.steam_id or not api_key:
+            return  # button should be disabled in this case; defensive no-op
+
+        self._discover_in_flight = True
+        self.discover_button.configure(state="disabled")
+        self.discover_status_msg.configure(text="Searching...", text_color="gray")
+        self._clear_discover_results()
+
+        steam_id = self.steam_id
+        friend_ids_snapshot = list(self.friend_ids)
+
+        def worker() -> None:
+            try:
+                steam_friend_ids = get_friend_list(api_key, steam_id)
+            except SteamFriendsListPrivateError as exc:
+                # str(exc) must be captured now, not inside the lambda --
+                # Python auto-unbinds an `except ... as exc` name at the end
+                # of the except block, and this lambda only actually runs
+                # later (async, via self.after on the Tk thread), by which
+                # point `exc` no longer exists in this scope (confirmed by
+                # hitting the resulting NameError directly, not assumed).
+                message = str(exc)
+                self.after(0, lambda: self._on_discover_finished(error=message))
+                return
+            except Exception:
+                self.after(0, lambda: self._on_discover_finished(error="Search failed — check your connection."))
+                return
+
+            try:
+                matched = fetch_profiles_by_steam_ids(self.cloud_client, steam_friend_ids)
+                candidates = discoverable_steam_friends(steam_friend_ids, matched, friend_ids_snapshot)
+            except Exception:
+                self.after(0, lambda: self._on_discover_finished(error="Search failed — check your connection."))
+                return
+
+            # Resolving display names is a nicety, not required for the
+            # feature to work -- a failure here just falls back to showing
+            # Goblin IDs in the checklist instead of real names.
+            names: dict[str, str] = {}
+            try:
+                candidate_steam_ids = [c["steam_id"] for c in candidates if c.get("steam_id")]
+                if candidate_steam_ids:
+                    names = get_player_summaries(api_key, candidate_steam_ids)
+            except Exception:
+                names = {}
+
+            self.after(0, lambda: self._on_discover_finished(candidates=candidates, names=names))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_discover_finished(
+        self,
+        candidates: list[dict] | None = None,
+        names: dict[str, str] | None = None,
+        error: str | None = None,
+    ) -> None:
+        self._discover_in_flight = False
+        self._refresh_discover_button_state()
+
+        if error is not None:
+            self.discover_status_msg.configure(text=error, text_color="#E57373")
+            return
+
+        self._discover_candidates = candidates or []
+        self._discover_names = names or {}
+        if not self._discover_candidates:
+            self.discover_status_msg.configure(
+                text="No new Steam friends found on Blueprint Goblin.", text_color="gray"
+            )
+            return
+        self.discover_status_msg.configure(text="")
+        self._render_discover_results()
+
+    def _clear_discover_results(self) -> None:
+        for widget in self.discover_results_frame.winfo_children():
+            widget.destroy()
+        self._discover_checkbox_vars = {}
+        self.discover_add_button.grid_forget()
+
+    def _render_discover_results(self) -> None:
+        self._clear_discover_results()
+        for i, candidate in enumerate(self._discover_candidates):
+            candidate_id = candidate["arbg_user_id"]
+            display_name = self._discover_names.get(candidate.get("steam_id"), candidate_id)
+            var = ctk.BooleanVar(value=False)  # opt-in: adding a friend is deliberate, not a default
+            self._discover_checkbox_vars[candidate_id] = var
+            ctk.CTkCheckBox(
+                self.discover_results_frame,
+                text=f"{display_name} ({candidate_id})",
+                variable=var,
+                font=ctk.CTkFont(size=12),
+            ).grid(row=i, column=0, sticky="w", pady=2)
+        self.discover_add_button.grid(row=5, column=0, sticky="w", pady=(6, 0))
+
+    def _on_add_selected_clicked(self) -> None:
+        selected_ids = [fid for fid, var in self._discover_checkbox_vars.items() if var.get()]
+        for candidate_id in selected_ids:
+            try:
+                self.friend_ids = add_friend(candidate_id, self.arbg_user_id, self.friend_ids)
+            except AddFriendError:
+                continue  # already added or somehow self -- already filtered upstream, but harmless
+        self._render_friends_list()
+        self.on_friends_changed(self.friend_ids)
+        self.discover_status_msg.configure(
+            text=f"Added {len(selected_ids)} friend(s)." if selected_ids else "", text_color="#81C784"
+        )
+        self._clear_discover_results()
+        self._discover_candidates = []

@@ -81,12 +81,21 @@ class FriendsSection(ctk.CTkFrame):
             self._checkbox_vars[friend_id] = var
             checkbox = ctk.CTkCheckBox(
                 self.list_frame,
-                text=friend_id,
+                text=self._display_name_for(friend_id),
                 variable=var,
                 font=ctk.CTkFont(size=11),
                 command=self._handle_toggle,
             )
             checkbox.grid(row=i, column=0, sticky="w", padx=4, pady=2)
+
+    def _display_name_for(self, friend_id: str) -> str:
+        # Resolved Steam persona name (Stage D) takes priority when
+        # available; identity/comparison logic still keys everything on the
+        # Goblin ID underneath, this is display-only.
+        snapshot = self.cache.get(friend_id)
+        if snapshot is not None and snapshot.steam_name:
+            return snapshot.steam_name
+        return friend_id
 
     def _handle_toggle(self) -> None:
         # Preserve the active/inactive preference of any friend not currently

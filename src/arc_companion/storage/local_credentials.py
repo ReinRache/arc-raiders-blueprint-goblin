@@ -2,8 +2,9 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CREDENTIALS_PATH = REPO_ROOT / "credentials.json"
+from arc_companion.paths import user_data_root
+
+DEFAULT_CREDENTIALS_PATH = user_data_root() / "credentials.json"
 
 
 @dataclass

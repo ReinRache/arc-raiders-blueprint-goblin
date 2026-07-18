@@ -3,10 +3,10 @@ import time
 from pathlib import Path
 
 from arc_companion.identity import generate_arbg_id
+from arc_companion.paths import user_data_root
 from arc_companion.storage.base import Store, UserState
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CONFIG_PATH = REPO_ROOT / "config.json"
+DEFAULT_CONFIG_PATH = user_data_root() / "config.json"
 
 # Sentinel from before local identity existed — a config.json written by an
 # older version of the app has this instead of a real steam_id.
@@ -40,6 +40,7 @@ class LocalJSONStore(Store):
             blueprints_spare=data.get("blueprints_spare", []),
             updated_at=data.get("updated_at", 0),
             last_synced_at=data.get("last_synced_at"),
+            steam_persona_name=data.get("steam_persona_name"),
         )
 
     def save_state(self, state: UserState) -> None:
@@ -56,6 +57,7 @@ class LocalJSONStore(Store):
                     "blueprints_spare": state.blueprints_spare,
                     "updated_at": state.updated_at,
                     "last_synced_at": state.last_synced_at,
+                    "steam_persona_name": state.steam_persona_name,
                 },
                 indent=2,
             ),

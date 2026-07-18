@@ -97,3 +97,23 @@ def visible_friend_ids(friend_ids: list[str], cache: dict[str, FriendProfileSnap
     Steam-imported friend never given a real Goblin ID -- doesn't show up
     here; Settings remains the place to manage the full roster."""
     return [fid for fid in friend_ids if fid in cache]
+
+
+def discoverable_steam_friends(
+    steam_friend_ids: list[str], matched_profiles: list[dict], already_added_ids: list[str]
+) -> list[dict]:
+    """Filters fetch_profiles_by_steam_ids's result down to candidates worth
+    suggesting: drops any match already in the roster (no point re-suggesting
+    someone you've already added), and orders results to match
+    steam_friend_ids's order (Steam's own friend-list order) rather than
+    arbitrary DB row order. Also naturally dedupes via the steam_id-keyed
+    lookup, in case the same profile somehow appears twice."""
+    already_added = set(already_added_ids)
+    by_steam_id = {p["steam_id"]: p for p in matched_profiles if p.get("steam_id")}
+    result = []
+    for steam_id in steam_friend_ids:
+        profile = by_steam_id.get(steam_id)
+        if profile is None or profile.get("arbg_user_id") in already_added:
+            continue
+        result.append(profile)
+    return result

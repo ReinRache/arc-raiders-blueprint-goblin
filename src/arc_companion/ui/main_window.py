@@ -10,7 +10,9 @@ from arc_companion.cloud.sync import ensure_session, push_profile
 from arc_companion.data.blueprints import load_blueprints
 from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
+from arc_companion.steam.web_api import get_player_summaries
 from arc_companion.storage.friends_cache import FriendProfileSnapshot, FriendsCacheStore
+from arc_companion.storage.local_credentials import LocalCredentialsStore
 from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.action_bar import ActionBar
@@ -109,10 +111,9 @@ class MainWindow(ctk.CTk):
         self.title_prefix_label = ctk.CTkLabel(self.title_row, text="Blueprint Database | ", font=title_font)
         self.title_prefix_label.grid(row=0, column=0, sticky="w")
 
-        # Steam persona-name resolution isn't built yet (Stage C explicitly
-        # deferred it) -- this always shows the Goblin ID for now, but is its
-        # own label so a resolved Steam name can replace it later without
-        # touching the surrounding layout.
+        # Its own label (not folded into the prefix string) so refreshing
+        # just the name -- e.g. once a Steam persona name resolves after a
+        # sync -- doesn't touch the surrounding layout.
         self.title_name_label = ctk.CTkLabel(self.title_row, text=self._display_name(), font=title_font)
         self.title_name_label.grid(row=0, column=1, sticky="w")
 
@@ -170,7 +171,10 @@ class MainWindow(ctk.CTk):
         return friend_status_counts_for(blueprint_id, active_snapshots)
 
     def _display_name(self) -> str:
-        return self.user_state.arbg_user_id
+        # Resolved via Steam's GetPlayerSummaries during Sync (Stage D), only
+        # when Steam is linked and a Web API key is saved -- falls back to
+        # the Goblin ID otherwise, same as before persona resolution existed.
+        return self.user_state.steam_persona_name or self.user_state.arbg_user_id
 
     def _collection_suffix(self) -> str:
         return f" Collection {len(self.owned_ids)}/{self.total_blueprints}"
@@ -240,12 +244,44 @@ class MainWindow(ctk.CTk):
             except Exception:
                 friend_snapshots = None
 
-            self.after(0, lambda: self._on_sync_finished(success=True, friend_snapshots=friend_snapshots))
+            # Persona-name resolution piggybacks on this same sync action --
+            # no separate "Refresh Names" trigger. Skipped entirely (falls
+            # back to Goblin ID everywhere) if no Web API key is saved, or if
+            # there's nothing with a steam_id to resolve. A resolution
+            # failure doesn't undo the sync or the friend-data refresh above.
+            resolved_own_name: str | None = None
+            try:
+                api_key = LocalCredentialsStore().load().steam_web_api_key
+                steam_ids_to_resolve = [
+                    snap.steam_id for snap in (friend_snapshots or {}).values() if snap.steam_id
+                ]
+                if state_snapshot.steam_id:
+                    steam_ids_to_resolve.append(state_snapshot.steam_id)
+                if api_key and steam_ids_to_resolve:
+                    names = get_player_summaries(api_key, steam_ids_to_resolve)
+                    if friend_snapshots:
+                        for snapshot in friend_snapshots.values():
+                            if snapshot.steam_id in names:
+                                snapshot.steam_name = names[snapshot.steam_id]
+                    if state_snapshot.steam_id in names:
+                        resolved_own_name = names[state_snapshot.steam_id]
+            except Exception:
+                resolved_own_name = None
+
+            self.after(
+                0,
+                lambda: self._on_sync_finished(
+                    success=True, friend_snapshots=friend_snapshots, resolved_own_name=resolved_own_name
+                ),
+            )
 
         threading.Thread(target=worker, daemon=True).start()
 
     def _on_sync_finished(
-        self, success: bool, friend_snapshots: dict[str, FriendProfileSnapshot] | None = None
+        self,
+        success: bool,
+        friend_snapshots: dict[str, FriendProfileSnapshot] | None = None,
+        resolved_own_name: str | None = None,
     ) -> None:
         self._sync_in_flight = False
         if not success:
@@ -256,9 +292,12 @@ class MainWindow(ctk.CTk):
         self.dirty = False
         self.action_bar.set_dirty(False)
         self.user_state.last_synced_at = int(time.time())
+        if resolved_own_name is not None:
+            self.user_state.steam_persona_name = resolved_own_name
         self.store.save_state(self.user_state)
         self.action_bar.set_last_synced_at(self.user_state.last_synced_at)
         self.action_bar.set_sync_status("Storage: Local + Cloud (Supabase) — Synced", "#4CAF50")
+        self.title_name_label.configure(text=self._display_name())
 
         if friend_snapshots is not None:
             self.friends_cache = friend_snapshots
@@ -306,6 +345,7 @@ class MainWindow(ctk.CTk):
             friend_ids=self.user_state.arbg_friend_user_ids,
             on_friends_changed=self._on_friends_changed,
             on_steam_linked=self._on_steam_linked,
+            cloud_client=self.cloud_client,
         )
 
     def _on_settings_clicked(self) -> None:

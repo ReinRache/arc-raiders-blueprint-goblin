@@ -18,6 +18,11 @@ class UserState:
     # Epoch seconds of the last successful cloud sync; None means never
     # synced. Distinct from updated_at, which bumps on every local edit.
     last_synced_at: int | None = None
+    # The viewer's own resolved Steam display name (Stage D), only when Steam
+    # is linked and a Web API key is saved. Local-only, like last_synced_at --
+    # never included in push_profile's payload. None falls back to
+    # arbg_user_id everywhere this is displayed.
+    steam_persona_name: str | None = None
 
 
 class Store(ABC):

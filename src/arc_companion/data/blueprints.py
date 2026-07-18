@@ -2,9 +2,10 @@ import csv
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-BLUEPRINTS_CSV = REPO_ROOT / "data" / "blueprints.csv"
-IMAGES_DIR = REPO_ROOT / "data" / "images"
+from arc_companion.paths import resource_root
+
+BLUEPRINTS_CSV = resource_root() / "data" / "blueprints.csv"
+IMAGES_DIR = resource_root() / "data" / "images"
 
 
 @dataclass(frozen=True)

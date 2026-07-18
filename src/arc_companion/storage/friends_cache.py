@@ -2,8 +2,9 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
-DEFAULT_CACHE_PATH = REPO_ROOT / "friends_cache.json"
+from arc_companion.paths import user_data_root
+
+DEFAULT_CACHE_PATH = user_data_root() / "friends_cache.json"
 
 
 @dataclass
@@ -16,6 +17,10 @@ class FriendProfileSnapshot:
     blueprints_owned: list[int] = field(default_factory=list)
     blueprints_wanted: list[int] = field(default_factory=list)
     blueprints_spare: list[int] = field(default_factory=list)
+    # Resolved via Steam's GetPlayerSummaries (Stage D), only when the viewer
+    # has their own Web API key saved -- None falls back to arbg_user_id for
+    # display, same as if Steam were never linked at all.
+    steam_name: str | None = None
 
 
 class FriendsCacheStore:
@@ -33,6 +38,7 @@ class FriendsCacheStore:
                 blueprints_owned=entry.get("blueprints_owned", []),
                 blueprints_wanted=entry.get("blueprints_wanted", []),
                 blueprints_spare=entry.get("blueprints_spare", []),
+                steam_name=entry.get("steam_name"),
             )
             for arbg_user_id, entry in data.items()
         }

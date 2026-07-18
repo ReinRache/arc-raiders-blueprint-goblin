@@ -2,6 +2,7 @@ from arc_companion.domain.friends import (
     FriendStatusCounts,
     Highlight,
     compute_highlight,
+    discoverable_steam_friends,
     friend_status_counts_for,
     reconcile_active_friends,
     visible_friend_ids,
@@ -128,3 +129,34 @@ def test_visible_friend_ids_preserves_order():
 def test_visible_friend_ids_empty_cache():
     cache: dict = {}
     assert visible_friend_ids(["A", "B"], cache) == []
+
+
+# ---- discoverable_steam_friends ----------------------------------------------------
+
+
+def test_discoverable_steam_friends_returns_matches():
+    matched = [{"arbg_user_id": "GBLN-A", "steam_id": "111"}, {"arbg_user_id": "GBLN-B", "steam_id": "222"}]
+    result = discoverable_steam_friends(["111", "222"], matched, already_added_ids=[])
+    assert [c["arbg_user_id"] for c in result] == ["GBLN-A", "GBLN-B"]
+
+
+def test_discoverable_steam_friends_excludes_already_added():
+    matched = [{"arbg_user_id": "GBLN-A", "steam_id": "111"}, {"arbg_user_id": "GBLN-B", "steam_id": "222"}]
+    result = discoverable_steam_friends(["111", "222"], matched, already_added_ids=["GBLN-A"])
+    assert [c["arbg_user_id"] for c in result] == ["GBLN-B"]
+
+
+def test_discoverable_steam_friends_orders_by_steam_friend_list_order():
+    matched = [{"arbg_user_id": "GBLN-A", "steam_id": "111"}, {"arbg_user_id": "GBLN-B", "steam_id": "222"}]
+    result = discoverable_steam_friends(["222", "111"], matched, already_added_ids=[])
+    assert [c["arbg_user_id"] for c in result] == ["GBLN-B", "GBLN-A"]
+
+
+def test_discoverable_steam_friends_ignores_unmatched_steam_ids():
+    matched = [{"arbg_user_id": "GBLN-A", "steam_id": "111"}]
+    result = discoverable_steam_friends(["111", "999"], matched, already_added_ids=[])
+    assert [c["arbg_user_id"] for c in result] == ["GBLN-A"]
+
+
+def test_discoverable_steam_friends_empty_inputs():
+    assert discoverable_steam_friends([], [], []) == []
