@@ -132,7 +132,7 @@ For sharing a runnable copy with someone who doesn't have Python — first time 
 - Rarity is sourced per-item from `arcraiders.wiki/wiki/<Item_Name>` infobox pages; all 83/83 resolved. Not yet surfaced in the UI (the mockup's cards don't show it either).
 
 ## Domain: blueprint status
-- `src/arc_companion/domain/status.py` — `BlueprintStatus` (UNOWNED/OWNED/WANT/HAVE) plus pure `status_for`/`apply_status` functions, kept out of the UI layer so they're unit-testable without a display.
+- `src/arc_companion/domain/status.py` — `BlueprintStatus` (`IntEnum`, ordered UNOWNED/WANT/OWNED/HAVE to mirror how ownership actually progresses — clicking a card's status button cycles via `.next()` in that order, and it's also the left-to-right order of the 4 friend-overlay dots on each card, since `blueprint_grid.py` iterates `enumerate(BlueprintStatus, ...)` directly) plus pure `status_for`/`apply_status` functions, kept out of the UI layer so they're unit-testable without a display. Reordering the enum is safe for persisted data — `UserState`/the cloud `profiles` table store blueprint IDs in three separate `owned`/`wanted`/`spare` id sets, never the enum's raw integer value.
 - Semantics (confirmed with the user, since the mockup itself was ambiguous): **Owned** = you secured/kept the blueprint (consumable, one-time use). **Want** = you don't have it and are looking for one. **Have** = you have a spare copy free to give away — and it also counts as "Owned" for collection-percentage accounting, i.e. `HAVE` is a superset of `OWNED` plus a spare flag, not an independent 4th state.
 
 ## Persistence

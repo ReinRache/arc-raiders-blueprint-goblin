@@ -3,8 +3,8 @@ from enum import IntEnum
 
 class BlueprintStatus(IntEnum):
     UNOWNED = 0
-    OWNED = 1
-    WANT = 2
+    WANT = 1
+    OWNED = 2
     HAVE = 3
 
     def next(self) -> "BlueprintStatus":

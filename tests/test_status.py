@@ -2,9 +2,9 @@ from arc_companion.domain.status import BlueprintStatus, apply_status, status_fo
 
 
 def test_next_wraps_through_all_four_states():
-    assert BlueprintStatus.UNOWNED.next() == BlueprintStatus.OWNED
-    assert BlueprintStatus.OWNED.next() == BlueprintStatus.WANT
-    assert BlueprintStatus.WANT.next() == BlueprintStatus.HAVE
+    assert BlueprintStatus.UNOWNED.next() == BlueprintStatus.WANT
+    assert BlueprintStatus.WANT.next() == BlueprintStatus.OWNED
+    assert BlueprintStatus.OWNED.next() == BlueprintStatus.HAVE
     assert BlueprintStatus.HAVE.next() == BlueprintStatus.UNOWNED
 
 
