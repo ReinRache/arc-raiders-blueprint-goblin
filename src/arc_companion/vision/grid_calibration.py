@@ -1,16 +1,34 @@
-"""Pixel geometry for the in-game Blueprints panel, calibrated against the
-reference screenshots in tests/fixtures/ (2556x1439). Resolution-specific by
-design (see the OCR plan) — a screenshot that doesn't match gets rejected by
-find_panel() rather than misread.
+"""Pixel geometry for the in-game Blueprints panel, calibrated at a
+REFERENCE_WIDTH x REFERENCE_HEIGHT resolution and scaled proportionally to
+whatever resolution an actual screenshot turns out to be (see geometry_for()).
+
+Confirmed empirically, not assumed, that the panel scales this way: real
+screenshots captured at 1920x1080 and 2560x1440 both had every measured
+corner land within a few pixels of what proportional scaling predicts --
+well inside the tolerance this module's own border-detection already
+absorbs (jitter of a similar size was already documented between the two
+original 2556x1439-class reference screenshots themselves). See the "Vision"
+section of CLAUDE.md for the full writeup, including a real mistake caught
+along the way: an early manual pixel-measurement attempt misread which row
+it was looking at and wrongly concluded the bottom-scroll origin didn't
+scale -- precise designer-provided pixel coordinates (not eyeballed crops)
+resolved it.
 
 If the game patches in more blueprints later, TOTAL_BLUEPRINTS (and
 data/blueprints.csv) are the values that need updating — the grid geometry
 itself shouldn't need to change unless the panel layout changes too.
 """
 
-EXPECTED_WIDTH = 2556
-EXPECTED_HEIGHT = 1439
-WIDTH_TOLERANCE = 15  # the two reference screenshots were 2556 and 2559 wide
+from dataclasses import dataclass
+
+REFERENCE_WIDTH = 2556
+REFERENCE_HEIGHT = 1439
+# How far an actual screenshot's aspect ratio may drift from the reference's
+# before we don't trust proportional scaling to apply -- comfortably covers
+# the ~0.1% jitter measured between 1920x1080, the 2556x1439-class
+# reference, and 2560x1440, but won't accept a very different aspect ratio
+# (e.g. ultrawide) that hasn't been verified against real data.
+ASPECT_RATIO_TOLERANCE = 0.03
 
 GRID_ORIGIN_X = 574
 CELL_PITCH = 139
@@ -20,7 +38,7 @@ CELL_PITCH = 139
 # from the top, confirmed empirically against the reference screenshots (a
 # naive shared-origin assumption was off by ~130px and silently misread most
 # of the bottom screenshot's grid). Each is measured and calibrated
-# independently:
+# independently, both scale proportionally like everything else here:
 GRID_ORIGIN_Y_TOP = 421  # row 1's top border, screenshot scrolled fully up
 GRID_ORIGIN_Y_BOTTOM = 291  # row (TOTAL_ROWS - ROWS_PER_VIEWPORT + 1)'s top border,
 # screenshot scrolled fully down — this is the *slot 0* origin, not row 1's;
@@ -50,13 +68,74 @@ BOOK_ICON_REL_X = (9, 24)
 BOOK_ICON_REL_Y = (102, 117)
 # Mean R+G+B per pixel in that sub-region. Found cells cluster ~500-590;
 # not-found cells (including the checkmark-region false positives) cluster
-# ~50-152 — 300 sits in the middle of a wide, clean gap.
+# ~50-152 — 300 sits in the middle of a wide, clean gap. A brightness value,
+# not a spatial measurement — does NOT scale with resolution.
 OWNED_ICON_BRIGHTNESS_THRESHOLD = 300.0
 
 SCROLLBAR_X = 1970
 SCROLLBAR_TRACK_TOP = GRID_ORIGIN_Y_TOP  # thumb top flush here when scrolled to top
 SCROLLBAR_TRACK_BOTTOM = 1118  # thumb bottom flush here when scrolled to bottom
-SCROLLBAR_PIN_TOLERANCE = 8  # px
+SCROLLBAR_PIN_TOLERANCE = 8  # px, at REFERENCE_WIDTH x REFERENCE_HEIGHT
+
+# Small search-window margins used by find_panel()'s border check (see
+# screenshot_reader.py:_has_border_near) -- pulled out as named, scaled
+# constants rather than inline literals so they scale consistently with
+# everything else instead of silently staying reference-resolution-sized.
+BORDER_CHECK_WINDOW_X = (-1, 6)
+BORDER_CHECK_WINDOW_Y = (10, 30)
+
+
+@dataclass(frozen=True)
+class GridGeometry:
+    """Every pixel-position constant above, scaled to one actual
+    screenshot's dimensions. Built once per image via geometry_for() and
+    threaded through the rest of the vision module instead of reading the
+    bare module constants directly."""
+
+    origin_x: float
+    origin_y_top: float
+    origin_y_bottom: float
+    cell_pitch_x: float
+    cell_pitch_y: float
+    scrollbar_x: float
+    scrollbar_track_top: float
+    scrollbar_track_bottom: float
+    scrollbar_pin_tolerance: float
+    book_icon_rel_x: tuple[float, float]
+    book_icon_rel_y: tuple[float, float]
+    border_check_window_x: tuple[float, float]
+    border_check_window_y: tuple[float, float]
+
+
+def compute_scale(width: int, height: int) -> tuple[float, float]:
+    return width / REFERENCE_WIDTH, height / REFERENCE_HEIGHT
+
+
+def is_plausible_aspect_ratio(width: int, height: int) -> bool:
+    if width <= 0 or height <= 0:
+        return False
+    reference_ratio = REFERENCE_WIDTH / REFERENCE_HEIGHT
+    actual_ratio = width / height
+    return abs(actual_ratio - reference_ratio) / reference_ratio <= ASPECT_RATIO_TOLERANCE
+
+
+def geometry_for(width: int, height: int) -> GridGeometry:
+    sx, sy = compute_scale(width, height)
+    return GridGeometry(
+        origin_x=GRID_ORIGIN_X * sx,
+        origin_y_top=GRID_ORIGIN_Y_TOP * sy,
+        origin_y_bottom=GRID_ORIGIN_Y_BOTTOM * sy,
+        cell_pitch_x=CELL_PITCH * sx,
+        cell_pitch_y=CELL_PITCH * sy,
+        scrollbar_x=SCROLLBAR_X * sx,
+        scrollbar_track_top=SCROLLBAR_TRACK_TOP * sy,
+        scrollbar_track_bottom=SCROLLBAR_TRACK_BOTTOM * sy,
+        scrollbar_pin_tolerance=SCROLLBAR_PIN_TOLERANCE * sy,
+        book_icon_rel_x=(BOOK_ICON_REL_X[0] * sx, BOOK_ICON_REL_X[1] * sx),
+        book_icon_rel_y=(BOOK_ICON_REL_Y[0] * sy, BOOK_ICON_REL_Y[1] * sy),
+        border_check_window_x=(BORDER_CHECK_WINDOW_X[0] * sx, BORDER_CHECK_WINDOW_X[1] * sx),
+        border_check_window_y=(BORDER_CHECK_WINDOW_Y[0] * sy, BORDER_CHECK_WINDOW_Y[1] * sy),
+    )
 
 
 def blueprint_id_for_position(row: int, col: int) -> int | None:
@@ -94,12 +173,14 @@ def readable_rows_for_scroll(pinned_top: bool) -> range:
     return range(rows.start + 1, rows.stop)  # drop the first (top-clipped) row
 
 
-def cell_origin(visible_row_index: int, col: int, pinned_top: bool) -> tuple[int, int]:
+def cell_origin(
+    visible_row_index: int, col: int, pinned_top: bool, geometry: GridGeometry
+) -> tuple[float, float]:
     """visible_row_index is 0-based (0 = topmost row-slot in the viewport);
     col is 1-indexed. Returns the cell's (x, y) top-left pixel origin. Uses
     whichever of the two independently-calibrated row origins matches this
     screenshot's scroll direction."""
-    origin_y = GRID_ORIGIN_Y_TOP if pinned_top else GRID_ORIGIN_Y_BOTTOM
-    x = GRID_ORIGIN_X + (col - 1) * CELL_PITCH
-    y = origin_y + visible_row_index * CELL_PITCH
+    origin_y = geometry.origin_y_top if pinned_top else geometry.origin_y_bottom
+    x = geometry.origin_x + (col - 1) * geometry.cell_pitch_x
+    y = origin_y + visible_row_index * geometry.cell_pitch_y
     return x, y

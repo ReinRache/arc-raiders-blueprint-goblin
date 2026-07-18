@@ -73,3 +73,53 @@ def test_merge_found_ids_matches_hand_verified_ground_truth_exactly(top_image, b
         f"false positives={sorted(found - GROUND_TRUTH_FOUND)} "
         f"false negatives={sorted(GROUND_TRUTH_FOUND - found)}"
     )
+
+
+# Multi-resolution support: screenshots the designer captured at common
+# gaming resolutions other than the original 2556x1439 reference, to prove
+# grid_calibration.py's proportional scaling (see geometry_for()) actually
+# works on real screenshots, not just in theory. There's no hand-verified
+# per-item ground truth for these captures (unlike GROUND_TRUTH_FOUND above)
+# -- the account had progressed to 50 found blueprints by the time these were
+# taken, confirmed only via the in-panel "FOUND: 50/83" counter visible in
+# both screenshots -- so these tests check the aggregate count and pairing
+# validation rather than an itemized set.
+MULTI_RESOLUTION_FOUND_COUNT = 50
+
+
+@pytest.fixture(params=["1920x1080", "2560x1440"])
+def multi_resolution_images(request):
+    resolution_dir = FIXTURES / "multi_resolution" / request.param
+    top = sr.load_image(resolution_dir / "top.png")
+    bottom = sr.load_image(resolution_dir / "bottom.png")
+    return top, bottom
+
+
+def test_find_panel_accepts_other_resolutions(multi_resolution_images):
+    top_image, bottom_image = multi_resolution_images
+    assert sr.find_panel(top_image)
+    assert sr.find_panel(bottom_image)
+
+
+def test_scroll_position_matches_filenames_at_other_resolutions(multi_resolution_images):
+    top_image, bottom_image = multi_resolution_images
+    assert sr.is_pinned_top(top_image)
+    assert not sr.is_pinned_bottom(top_image)
+    assert sr.is_pinned_bottom(bottom_image)
+    assert not sr.is_pinned_top(bottom_image)
+
+
+def test_top_and_bottom_validate_as_a_pair_at_other_resolutions(multi_resolution_images):
+    top_image, bottom_image = multi_resolution_images
+    top_grid = sr.read_grid(top_image, pinned_top=True)
+    bottom_grid = sr.read_grid(bottom_image, pinned_top=False)
+    result = validate_pair(top_grid, bottom_grid)
+    assert result.ok, result.error
+
+
+def test_merge_found_ids_matches_in_panel_counter_at_other_resolutions(multi_resolution_images):
+    top_image, bottom_image = multi_resolution_images
+    top_grid = sr.read_grid(top_image, pinned_top=True)
+    bottom_grid = sr.read_grid(bottom_image, pinned_top=False)
+    found = merge_found_ids(top_grid, bottom_grid)
+    assert len(found) == MULTI_RESOLUTION_FOUND_COUNT
