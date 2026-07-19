@@ -4,8 +4,9 @@ from supabase import Client, create_client
 # a secret. Supabase's security boundary is the RLS policies on the database
 # (see supabase/schema.sql), not keeping this key hidden. Confirmed against
 # Supabase's own docs before committing to this, unlike the Steam Web API key
-# (storage/local_credentials.py), which Valve's docs explicitly forbid
-# shipping with a client.
+# (a Supabase secret used only inside supabase/functions/, never shipped
+# with the client — see cloud/steam_proxy.py), which Valve's docs explicitly
+# forbid shipping with a client.
 SUPABASE_URL = "https://ysagpirtcslsnbqotwhp.supabase.co"
 SUPABASE_PUBLISHABLE_KEY = "sb_publishable_utXtFg0X3RXdbDOZaSs9RA_ZSX8oXGn"
 

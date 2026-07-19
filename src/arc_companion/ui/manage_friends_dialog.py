@@ -1,16 +1,21 @@
 import threading
-import webbrowser
 from collections.abc import Callable
 
 import customtkinter as ctk
 from supabase import Client
 
 from arc_companion.cloud.friends import fetch_profiles_by_steam_ids
+from arc_companion.cloud.steam_proxy import (
+    SteamFriendsListPrivateError,
+    SteamProxyRateLimitedError,
+    get_friend_list,
+    get_player_summaries,
+)
+from arc_companion.cloud.sync import ensure_session
 from arc_companion.domain.friends import discoverable_steam_friends
 from arc_companion.identity import AddFriendError, add_friend
 from arc_companion.steam import openid_auth
-from arc_companion.steam.web_api import SteamFriendsListPrivateError, get_friend_list, get_player_summaries
-from arc_companion.storage.local_credentials import LocalCredentials, LocalCredentialsStore
+from arc_companion.storage.supabase_session import SupabaseSessionStore
 
 
 class ManageFriendsDialog(ctk.CTkToplevel):
@@ -23,6 +28,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         on_friends_changed: Callable[[list[str]], None],
         on_steam_linked: Callable[[str], None],
         cloud_client: Client,
+        cloud_session_store: SupabaseSessionStore,
     ):
         super().__init__(master)
         self.title("Manage Friends")
@@ -37,7 +43,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.on_friends_changed = on_friends_changed
         self.on_steam_linked = on_steam_linked
         self.cloud_client = cloud_client
-        self.credentials_store = LocalCredentialsStore()
+        self.cloud_session_store = cloud_session_store
         self._cancel_login: Callable[[], None] | None = None
         self._discover_in_flight = False
         self._discover_candidates: list[dict] = []
@@ -194,49 +200,6 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         )
         self.steam_status_msg.grid(row=5, column=0, sticky="w", pady=(6, 0))
 
-        ctk.CTkLabel(frame, text="Steam Web API Key", font=ctk.CTkFont(size=13, weight="bold")).grid(
-            row=6, column=0, sticky="w", pady=(14, 2)
-        )
-        ctk.CTkLabel(
-            frame,
-            text="Get your own free personal key — never shared, stored only on this device.",
-            text_color="gray",
-            wraplength=480,
-            justify="left",
-        ).grid(row=7, column=0, sticky="w")
-        api_key_url = "https://steamcommunity.com/dev/apikey"
-        api_key_link = ctk.CTkLabel(
-            frame,
-            text=api_key_url.removeprefix("https://"),
-            text_color="#4FA8E0",
-            font=ctk.CTkFont(underline=True),
-            cursor="hand2",
-            anchor="w",
-        )
-        api_key_link.grid(row=8, column=0, sticky="w", pady=(0, 2))
-        api_key_link.bind("<Button-1>", lambda _event: webbrowser.open(api_key_url))
-        ctk.CTkLabel(
-            frame,
-            # Steam's registration form asks for a "Domain Name" even though this
-            # isn't a website — confirmed via Steam's own support forums that the
-            # field isn't actually verified, and "localhost" is the standard,
-            # widely-used value for any non-website use of a personal key.
-            text='That form asks for a "Domain Name" — since this isn\'t a website, enter '
-            '"localhost".',
-            text_color="gray",
-            wraplength=480,
-            justify="left",
-        ).grid(row=9, column=0, sticky="w", pady=(0, 6))
-        key_row = ctk.CTkFrame(frame, fg_color="transparent")
-        key_row.grid(row=10, column=0, sticky="ew")
-        self.api_key_entry = ctk.CTkEntry(key_row, width=300, show="*")
-        self.api_key_entry.grid(row=0, column=0, padx=(0, 8))
-        ctk.CTkButton(key_row, text="Save", width=80, command=self._on_save_api_key).grid(row=0, column=1)
-
-        existing = self.credentials_store.load()
-        if existing.steam_web_api_key:
-            self.api_key_entry.insert(0, existing.steam_web_api_key)
-
         self._refresh_steam_status()
 
     def _refresh_steam_status(self) -> None:
@@ -284,11 +247,6 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self._refresh_steam_status()
         self.on_steam_linked(steam_id)
 
-    def _on_save_api_key(self) -> None:
-        key = self.api_key_entry.get().strip()
-        self.credentials_store.save(LocalCredentials(steam_web_api_key=key or None))
-        self._refresh_discover_button_state()
-
     # ---- Discover Steam friends ---------------------------------------------------
 
     def _build_discover_steam_friends_section(self) -> None:
@@ -302,7 +260,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             frame,
             text="Find friends from your real Steam friends list who are also using this app. "
-            "Requires Steam to be linked and a Web API key saved above.",
+            "Requires Steam to be linked above.",
             text_color="gray",
             wraplength=480,
             justify="left",
@@ -331,14 +289,12 @@ class ManageFriendsDialog(ctk.CTkToplevel):
     def _refresh_discover_button_state(self) -> None:
         if not hasattr(self, "discover_button") or self._discover_in_flight:
             return
-        api_key = self.credentials_store.load().steam_web_api_key
-        self.discover_button.configure(state="normal" if (self.steam_id and api_key) else "disabled")
+        self.discover_button.configure(state="normal" if self.steam_id else "disabled")
 
     def _on_discover_clicked(self) -> None:
         if self._discover_in_flight:
             return
-        api_key = self.credentials_store.load().steam_web_api_key
-        if not self.steam_id or not api_key:
+        if not self.steam_id:
             return  # button should be disabled in this case; defensive no-op
 
         self._discover_in_flight = True
@@ -351,8 +307,12 @@ class ManageFriendsDialog(ctk.CTkToplevel):
 
         def worker() -> None:
             try:
-                steam_friend_ids = get_friend_list(api_key, steam_id)
-            except SteamFriendsListPrivateError as exc:
+                # The Steam proxy Edge Functions require an authenticated
+                # Supabase session (verify_jwt) -- unlike the plain profile
+                # reads below, which are publicly readable under RLS.
+                ensure_session(self.cloud_client, self.cloud_session_store)
+                steam_friend_ids = get_friend_list(self.cloud_client, steam_id)
+            except (SteamFriendsListPrivateError, SteamProxyRateLimitedError) as exc:
                 # str(exc) must be captured now, not inside the lambda --
                 # Python auto-unbinds an `except ... as exc` name at the end
                 # of the except block, and this lambda only actually runs
@@ -380,7 +340,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
             try:
                 candidate_steam_ids = [c["steam_id"] for c in candidates if c.get("steam_id")]
                 if candidate_steam_ids:
-                    names = get_player_summaries(api_key, candidate_steam_ids)
+                    names = get_player_summaries(self.cloud_client, candidate_steam_ids)
             except Exception:
                 names = {}
 

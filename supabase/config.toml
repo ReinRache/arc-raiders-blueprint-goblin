@@ -1,0 +1,15 @@
+# Supabase CLI config for Edge Functions -- first use of the Supabase CLI in
+# this repo (schema.sql has always been applied by hand in the SQL Editor;
+# there's still no CI auto-deploy, deployment is a manual `supabase
+# functions deploy` run, same "hand-applied, checked in for history"
+# treatment as the SQL).
+project_id = "ysagpirtcslsnbqotwhp"
+
+# verify_jwt = true is already the CLI's default -- set explicitly here so
+# it's documented, not implicit. A request with no valid Supabase session
+# bearer token is rejected before either function's code even runs.
+[functions.steam-player-summaries]
+verify_jwt = true
+
+[functions.steam-friend-list]
+verify_jwt = true

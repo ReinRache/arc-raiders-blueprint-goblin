@@ -6,13 +6,12 @@ import customtkinter as ctk
 
 from arc_companion.cloud.client import create_supabase_client
 from arc_companion.cloud.friends import fetch_friend_profiles
+from arc_companion.cloud.steam_proxy import get_player_summaries
 from arc_companion.cloud.sync import ensure_session, push_profile
 from arc_companion.data.blueprints import load_blueprints
 from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
-from arc_companion.steam.web_api import get_player_summaries
 from arc_companion.storage.friends_cache import FriendProfileSnapshot, FriendsCacheStore
-from arc_companion.storage.local_credentials import LocalCredentialsStore
 from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.action_bar import ActionBar
@@ -246,19 +245,22 @@ class MainWindow(ctk.CTk):
 
             # Persona-name resolution piggybacks on this same sync action --
             # no separate "Refresh Names" trigger. Skipped entirely (falls
-            # back to Goblin ID everywhere) if no Web API key is saved, or if
-            # there's nothing with a steam_id to resolve. A resolution
-            # failure doesn't undo the sync or the friend-data refresh above.
+            # back to Goblin ID everywhere) if there's nothing with a
+            # steam_id to resolve. A resolution failure doesn't undo the
+            # sync or the friend-data refresh above. No per-user Web API key
+            # needed -- get_player_summaries goes through the shared Steam
+            # proxy Edge Function (see cloud/steam_proxy.py), authenticated
+            # by the same session ensure_session() already established above
+            # for the push.
             resolved_own_name: str | None = None
             try:
-                api_key = LocalCredentialsStore().load().steam_web_api_key
                 steam_ids_to_resolve = [
                     snap.steam_id for snap in (friend_snapshots or {}).values() if snap.steam_id
                 ]
                 if state_snapshot.steam_id:
                     steam_ids_to_resolve.append(state_snapshot.steam_id)
-                if api_key and steam_ids_to_resolve:
-                    names = get_player_summaries(api_key, steam_ids_to_resolve)
+                if steam_ids_to_resolve:
+                    names = get_player_summaries(self.cloud_client, steam_ids_to_resolve)
                     if friend_snapshots:
                         for snapshot in friend_snapshots.values():
                             if snapshot.steam_id in names:
@@ -346,6 +348,7 @@ class MainWindow(ctk.CTk):
             on_friends_changed=self._on_friends_changed,
             on_steam_linked=self._on_steam_linked,
             cloud_client=self.cloud_client,
+            cloud_session_store=self.cloud_session_store,
         )
 
     def _on_settings_clicked(self) -> None:
