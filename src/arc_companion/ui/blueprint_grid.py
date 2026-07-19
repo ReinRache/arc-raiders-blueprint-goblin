@@ -1,16 +1,26 @@
 import tkinter
 from collections.abc import Callable
+from functools import lru_cache
 
 import customtkinter as ctk
 from PIL import Image
 
-from arc_companion.data.blueprints import Blueprint
+from arc_companion.data.blueprints import IMAGES_DIR, Blueprint
 from arc_companion.domain.friends import FriendStatusCounts, Highlight, compute_highlight
 from arc_companion.domain.status import BlueprintStatus
 from arc_companion.ui.theme import HIGHLIGHT_COLORS, STATUS_COLORS
 from arc_companion.ui.tooltip import Tooltip
 
 _ICON_SIZE = (60, 60)
+# The in-game Blueprints panel renders every icon on a distinct colored
+# "plate" behind it -- this reproduces that look by tinting the one real
+# backdrop asset the wiki scrape already pulled down (previously unused) per
+# the tile's status color, instead of needing 4 pre-baked backdrop variants
+# per blueprint (332 images). The backdrop is shared/cached once per status
+# across every card; only the icon on top differs per blueprint.
+_BACKDROP_PATH = IMAGES_DIR / "100px-UI_Blueprint_background.png.webp"
+_BACKDROP_TINT_STRENGTH = 0.5  # 0 = original backdrop color, 1 = solid status color
+_ICON_INSET_PX = 6  # leaves a visible ring of tinted backdrop around the icon
 _CARD_WIDTH = 140
 # Grew from 145 to fit the new friends-overlay row (icon + 4 status dots)
 # below the existing status button -- provisional pending direct
@@ -45,11 +55,35 @@ def _wrap_name(name: str, font: ctk.CTkFont, max_width: int) -> str:
     return "\n".join(lines)
 
 
-def _load_icon(blueprint: Blueprint) -> ctk.CTkImage | None:
+def _load_raw_icon(blueprint: Blueprint) -> Image.Image | None:
     if not blueprint.image_path.exists():
         return None
-    image = Image.open(blueprint.image_path).convert("RGBA")
-    return ctk.CTkImage(light_image=image, dark_image=image, size=_ICON_SIZE)
+    return Image.open(blueprint.image_path).convert("RGBA")
+
+
+@lru_cache(maxsize=1)
+def _load_backdrop() -> Image.Image | None:
+    if not _BACKDROP_PATH.exists():
+        return None
+    return Image.open(_BACKDROP_PATH).convert("RGBA").resize(_ICON_SIZE)
+
+
+def _tint_backdrop(backdrop: Image.Image, hex_color: str, strength: float) -> Image.Image:
+    r, g, b = int(hex_color[1:3], 16), int(hex_color[3:5], 16), int(hex_color[5:7], 16)
+    tint = Image.new("RGB", backdrop.size, (r, g, b))
+    blended = Image.blend(backdrop.convert("RGB"), tint, strength)
+    return Image.merge("RGBA", (*blended.split(), backdrop.split()[3]))
+
+
+def _compose_status_icon(icon: Image.Image | None, backdrop: Image.Image | None) -> Image.Image | None:
+    if backdrop is None:
+        return icon.resize(_ICON_SIZE) if icon is not None else None
+    composed = backdrop.copy()
+    if icon is not None:
+        inset_size = (_ICON_SIZE[0] - 2 * _ICON_INSET_PX, _ICON_SIZE[1] - 2 * _ICON_INSET_PX)
+        resized = icon.resize(inset_size)
+        composed.paste(resized, (_ICON_INSET_PX, _ICON_INSET_PX), resized)
+    return composed
 
 
 class BlueprintCard(ctk.CTkFrame):
@@ -74,10 +108,11 @@ class BlueprintCard(ctk.CTkFrame):
         self._status = status
         self._friend_counts = friend_counts
 
+        self.icon_label: ctk.CTkLabel | None = None
         if icon is not None:
             self._icon = icon  # keep a reference alive; Tk drops images with no referrer
-            icon_label = ctk.CTkLabel(self, image=icon, text="")
-            icon_label.grid(row=0, column=0, padx=15, pady=(8, 2))
+            self.icon_label = ctk.CTkLabel(self, image=icon, text="")
+            self.icon_label.grid(row=0, column=0, padx=15, pady=(8, 2))
         else:
             placeholder = ctk.CTkFrame(
                 self, width=_ICON_SIZE[0], height=_ICON_SIZE[1], fg_color="#1F538D", corner_radius=4
@@ -122,16 +157,22 @@ class BlueprintCard(ctk.CTkFrame):
             Tooltip(dot, (lambda s=dot_status: self._tooltip_text_for(s)))
             self._dot_labels[dot_status] = dot
 
-        self.set_status(status)
+        self.set_status(status, icon)
         self.set_friend_overlay(friend_counts, highlight)
 
     def _tooltip_text_for(self, status: BlueprintStatus) -> str:
         return "\n".join(self._friend_counts.for_status(status))
 
-    def set_status(self, status: BlueprintStatus) -> None:
+    def set_status(self, status: BlueprintStatus, icon: ctk.CTkImage | None) -> None:
         self._status = status
         text, color, hover = STATUS_COLORS[status]
         self.status_btn.configure(text=text, fg_color=color, hover_color=hover)
+        # The backdrop tint behind the icon is per-status too (see
+        # _compose_status_icon), so a status change needs a new composited
+        # image, not just the button re-styled.
+        if icon is not None and self.icon_label is not None:
+            self._icon = icon
+            self.icon_label.configure(image=icon)
 
     def set_friend_overlay(self, friend_counts: FriendStatusCounts, highlight: Highlight) -> None:
         self._friend_counts = friend_counts
@@ -168,7 +209,9 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         self.on_cycle = on_cycle
         self.friend_counts_for_id = friend_counts_for_id
         self.cards: dict[int, BlueprintCard] = {}
-        self._icon_cache: dict[int, ctk.CTkImage | None] = {}
+        self._raw_icon_cache: dict[int, Image.Image | None] = {}
+        self._tinted_backdrop_cache: dict[BlueprintStatus, Image.Image | None] = {}
+        self._status_icon_cache: dict[tuple[int, BlueprintStatus], ctk.CTkImage | None] = {}
         self._search_query = ""
         self._resize_after_id: str | None = None
         # 0 is not a value compute_columns() can ever return (it's clamped to
@@ -228,7 +271,10 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         # My own status is itself an input to compute_highlight(), so a
         # status change needs the overlay recomputed too, not just re-styled.
         if blueprint_id in self.cards:
-            self.cards[blueprint_id].set_status(self.status_for_id(blueprint_id))
+            card = self.cards[blueprint_id]
+            status = self.status_for_id(blueprint_id)
+            icon = self._get_status_icon(card.blueprint, status)
+            card.set_status(status, icon)
             self._refresh_card_overlay(blueprint_id)
 
     def refresh_friend_overlay(self) -> None:
@@ -240,10 +286,30 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         highlight = compute_highlight(self.status_for_id(blueprint_id), counts)
         self.cards[blueprint_id].set_friend_overlay(counts, highlight)
 
-    def _get_icon(self, blueprint: Blueprint) -> ctk.CTkImage | None:
-        if blueprint.id not in self._icon_cache:
-            self._icon_cache[blueprint.id] = _load_icon(blueprint)
-        return self._icon_cache[blueprint.id]
+    def _get_raw_icon(self, blueprint: Blueprint) -> Image.Image | None:
+        if blueprint.id not in self._raw_icon_cache:
+            self._raw_icon_cache[blueprint.id] = _load_raw_icon(blueprint)
+        return self._raw_icon_cache[blueprint.id]
+
+    def _get_tinted_backdrop(self, status: BlueprintStatus) -> Image.Image | None:
+        if status not in self._tinted_backdrop_cache:
+            backdrop = _load_backdrop()
+            _, color, _ = STATUS_COLORS[status]
+            self._tinted_backdrop_cache[status] = (
+                _tint_backdrop(backdrop, color, _BACKDROP_TINT_STRENGTH) if backdrop is not None else None
+            )
+        return self._tinted_backdrop_cache[status]
+
+    def _get_status_icon(self, blueprint: Blueprint, status: BlueprintStatus) -> ctk.CTkImage | None:
+        key = (blueprint.id, status)
+        if key not in self._status_icon_cache:
+            composed = _compose_status_icon(self._get_raw_icon(blueprint), self._get_tinted_backdrop(status))
+            self._status_icon_cache[key] = (
+                ctk.CTkImage(light_image=composed, dark_image=composed, size=_ICON_SIZE)
+                if composed is not None
+                else None
+            )
+        return self._status_icon_cache[key]
 
     def render(self) -> None:
         # Cards are positioned with place(), not grid(). CTkScrollableFrame's
@@ -283,7 +349,7 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
                     bp,
                     status,
                     self.on_cycle,
-                    self._get_icon(bp),
+                    self._get_status_icon(bp, status),
                     counts,
                     compute_highlight(status, counts),
                 )

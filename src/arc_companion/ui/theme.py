@@ -12,9 +12,9 @@ from arc_companion.domain.status import BlueprintStatus
 # blended into the card/icon background at that darkness.
 STATUS_COLORS: dict[BlueprintStatus, tuple[str, str, str]] = {
     BlueprintStatus.UNOWNED: ("Unowned", "#5C5C5C", "#6E6E6E"),
-    BlueprintStatus.OWNED: ("Owned", "#2E7D32", "#388E3C"),
-    BlueprintStatus.WANT: ("Want", "#C62828", "#D32F2F"),
-    BlueprintStatus.HAVE: ("Have", "#1565C0", "#1976D2"),
+    BlueprintStatus.OWNED: ("Owned", "#4932CC", "#796ACE"),
+    BlueprintStatus.WANT: ("Want", "#1F8535", "#589666"),
+    BlueprintStatus.HAVE: ("Have", "#22A8C0", "#8BB8C0"),
 }
 
 # (border_width, border_color) per highlight tier. Green = "a friend has one
