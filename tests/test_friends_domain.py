@@ -39,6 +39,15 @@ def test_friend_status_counts_for_only_considers_given_blueprint():
     assert counts.have == []
 
 
+def test_friend_status_counts_for_prefers_steam_name_over_goblin_id():
+    friends = [
+        FriendProfileSnapshot(arbg_user_id="A", blueprints_owned=[1], steam_name="Alice"),
+        FriendProfileSnapshot(arbg_user_id="B", blueprints_owned=[1], steam_name=None),
+    ]
+    counts = friend_status_counts_for(1, friends)
+    assert counts.owned == ["Alice", "B"]
+
+
 # ---- compute_highlight ----------------------------------------------------------
 
 

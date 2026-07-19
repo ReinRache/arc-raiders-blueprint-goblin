@@ -11,6 +11,16 @@ from arc_companion.domain.status import BlueprintStatus
 from arc_companion.ui.theme import HIGHLIGHT_COLORS, STATUS_COLORS
 from arc_companion.ui.tooltip import Tooltip
 
+# Header line shown above the friend-name list in each dot's hover tooltip --
+# gives first-time viewers context for what the list of names means, since
+# the dot alone (a color + a count) isn't self-explanatory.
+_TOOLTIP_HEADERS: dict[BlueprintStatus, str] = {
+    BlueprintStatus.UNOWNED: "Unowned By",
+    BlueprintStatus.WANT: "Wanted By",
+    BlueprintStatus.OWNED: "Owned By",
+    BlueprintStatus.HAVE: "Have a Spare",
+}
+
 _ICON_SIZE = (86, 86)
 # The in-game Blueprints panel renders every icon on a distinct colored
 # "plate" behind it -- this reproduces that look by tinting the one real
@@ -145,15 +155,23 @@ class BlueprintCard(ctk.CTkFrame):
         # each showing how many active friends are in that state and, on
         # hover, listing their names.
         friends_row = ctk.CTkFrame(self, fg_color="transparent")
-        friends_row.grid(row=3, column=0, padx=2, pady=(0, 3), sticky="ew")
+        # padx must clear the card's own corner_radius (6) or the outer
+        # icon/dot visually pokes past the rounded corner when this row
+        # stretches ("ew") to fill the column width -- confirmed by the
+        # designer against a real screenshot at padx=2.
+        friends_row.grid(row=3, column=0, padx=8, pady=(0, 3), sticky="ew")
         friends_row.grid_columnconfigure(tuple(range(6)), weight=1)
-        ctk.CTkLabel(friends_row, text="\U0001F465", font=ctk.CTkFont(size=13)).grid(
+        # height=18 overrides CTkLabel's default (28px, unrelated to font
+        # size) -- left at the default, each label's box was noticeably
+        # taller than its glyph needs, and that extra internal padding
+        # pushed the row's effective bottom edge into the card's border.
+        ctk.CTkLabel(friends_row, text="\U0001F465", font=ctk.CTkFont(size=13), height=18).grid(
             row=0, column=0, padx=(2, 4)
         )
         self._dot_labels: dict[BlueprintStatus, ctk.CTkLabel] = {}
         for i, dot_status in enumerate(BlueprintStatus, start=1):
             _, fg, _ = STATUS_COLORS[dot_status]
-            dot = ctk.CTkLabel(friends_row, text="●0", font=ctk.CTkFont(size=13), text_color=fg)
+            dot = ctk.CTkLabel(friends_row, text="●0", font=ctk.CTkFont(size=13), text_color=fg, height=18)
             dot.grid(row=0, column=i, padx=4)
             Tooltip(dot, (lambda s=dot_status: self._tooltip_text_for(s)))
             self._dot_labels[dot_status] = dot
@@ -162,7 +180,10 @@ class BlueprintCard(ctk.CTkFrame):
         self.set_friend_overlay(friend_counts, highlight)
 
     def _tooltip_text_for(self, status: BlueprintStatus) -> str:
-        return "\n".join(self._friend_counts.for_status(status))
+        names = self._friend_counts.for_status(status)
+        if not names:
+            return ""  # Tooltip itself suppresses an empty popup -- no names, no header either.
+        return "\n".join([_TOOLTIP_HEADERS[status], *names])
 
     def set_status(self, status: BlueprintStatus, icon: ctk.CTkImage | None) -> None:
         self._status = status

@@ -7,8 +7,10 @@ from arc_companion.storage.friends_cache import FriendProfileSnapshot
 
 @dataclass
 class FriendStatusCounts:
-    # Each list holds arbg_user_ids of active friends in that status for one
-    # blueprint -- the list IS the tooltip content, len() is the dot count.
+    # Each list holds a *display name* (steam_name if resolved, else
+    # arbg_user_id -- see friend_status_counts_for) for each active friend in
+    # that status for one blueprint -- the list IS the tooltip content,
+    # len() is the dot count.
     unowned: list[str] = field(default_factory=list)
     want: list[str] = field(default_factory=list)
     owned: list[str] = field(default_factory=list)
@@ -34,14 +36,18 @@ def friend_status_counts_for(
             set(snapshot.blueprints_wanted),
             set(snapshot.blueprints_spare),
         )
+        # Prefer the resolved Steam persona name over the bare Goblin ID --
+        # only falls back when Steam isn't linked/resolved for that friend,
+        # same fallback FriendsSection/MainWindow already use for names.
+        display_name = snapshot.steam_name or snapshot.arbg_user_id
         if status == BlueprintStatus.UNOWNED:
-            counts.unowned.append(snapshot.arbg_user_id)
+            counts.unowned.append(display_name)
         elif status == BlueprintStatus.WANT:
-            counts.want.append(snapshot.arbg_user_id)
+            counts.want.append(display_name)
         elif status == BlueprintStatus.OWNED:
-            counts.owned.append(snapshot.arbg_user_id)
+            counts.owned.append(display_name)
         elif status == BlueprintStatus.HAVE:
-            counts.have.append(snapshot.arbg_user_id)
+            counts.have.append(display_name)
     return counts
 
 

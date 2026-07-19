@@ -93,3 +93,9 @@ To ensure GDPR/COPPA compliance and maintain a free database tier, the app must 
   * Add a hover or right-click tooltip context overlay window to each blueprint item row.  
   * Embed a static lookup array containing crafting ingredients (e.g., Fabric, Rubber, ARC Alloy) and known map drop spots (e.g., Grandioso Apartments, Marano Station, Dam Battlegrounds) to display inside the tooltip UI.
 
+## **Deferred Ideas / Future TODOs**
+
+Not scoped to a phase yet — noted here so they aren't lost, revisit when there's room.
+
+* **Friend nicknames.** Friend-facing UI (the friend-overlay dot tooltips, the friend-selector sidebar list) now prefers a friend's resolved Steam persona name over their bare Goblin ID, but that only helps for friends who've linked Steam. A friend who hasn't (or can't — see the Steam Web API Proxy work, which exists specifically because not everyone can even get a Steam Web API key) still shows as a raw `GBLN-XXXXX` string, which is hard for a player to remember "who is who" for. A local, per-install nickname a player sets for each of their own friends (stored alongside the roster, never synced — this is the viewer's own private label for someone else, not that person's actual identity) would cover that gap without depending on Steam at all.
+

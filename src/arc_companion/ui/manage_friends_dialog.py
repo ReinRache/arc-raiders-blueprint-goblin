@@ -165,7 +165,10 @@ class ManageFriendsDialog(ctk.CTkToplevel):
 
     def _build_steam_section(self) -> None:
         frame = ctk.CTkFrame(self.body, fg_color="transparent")
-        frame.grid(row=2, column=0, padx=24, pady=(10, 20), sticky="ew")
+        # pady=10 (not (10, 20)) matches the friends section's rhythm --
+        # the extra bottom margin was sized for this frame back when it
+        # also held the now-deleted Steam Web API Key block.
+        frame.grid(row=2, column=0, padx=24, pady=10, sticky="ew")
         frame.grid_columnconfigure(0, weight=1)
 
         ctk.CTkLabel(
@@ -195,8 +198,12 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.steam_button = ctk.CTkButton(frame, text="Link Steam Account", command=self._on_steam_button)
         self.steam_button.grid(row=4, column=0, sticky="w")
 
+        # height=18 overrides CTkLabel's default (28px, unrelated to actual
+        # text) -- this label is empty except during/right after a login
+        # attempt, and the unused default height was reserving real blank
+        # space above the next section even when there was nothing to show.
         self.steam_status_msg = ctk.CTkLabel(
-            frame, text="", text_color="gray", wraplength=480, justify="left"
+            frame, text="", text_color="gray", wraplength=480, justify="left", height=18
         )
         self.steam_status_msg.grid(row=5, column=0, sticky="w", pady=(6, 0))
 
