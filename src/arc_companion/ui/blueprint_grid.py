@@ -11,7 +11,7 @@ from arc_companion.domain.status import BlueprintStatus
 from arc_companion.ui.theme import HIGHLIGHT_COLORS, STATUS_COLORS
 from arc_companion.ui.tooltip import Tooltip
 
-_ICON_SIZE = (60, 60)
+_ICON_SIZE = (86, 86)
 # The in-game Blueprints panel renders every icon on a distinct colored
 # "plate" behind it -- this reproduces that look by tinting the one real
 # backdrop asset the wiki scrape already pulled down (previously unused) per
@@ -112,13 +112,13 @@ class BlueprintCard(ctk.CTkFrame):
         if icon is not None:
             self._icon = icon  # keep a reference alive; Tk drops images with no referrer
             self.icon_label = ctk.CTkLabel(self, image=icon, text="")
-            self.icon_label.grid(row=0, column=0, padx=15, pady=(8, 2))
+            self.icon_label.grid(row=0, column=0, padx=5, pady=(4, 2))
         else:
             placeholder = ctk.CTkFrame(
                 self, width=_ICON_SIZE[0], height=_ICON_SIZE[1], fg_color="#1F538D", corner_radius=4
             )
             placeholder.grid_propagate(False)
-            placeholder.grid(row=0, column=0, padx=15, pady=(8, 2))
+            placeholder.grid(row=0, column=0, padx=5, pady=(4, 2))
 
         name_font = ctk.CTkFont(size=11, weight="bold")
         self.name_label = ctk.CTkLabel(
@@ -139,21 +139,22 @@ class BlueprintCard(ctk.CTkFrame):
             width=85,
             command=lambda: on_cycle(self.blueprint.id),
         )
-        self.status_btn.grid(row=2, column=0, padx=10, pady=(2, 4))
+        self.status_btn.grid(row=2, column=0, padx=10, pady=(2, 2))
 
         # Friends overlay row: a small icon + one dot per BlueprintStatus,
         # each showing how many active friends are in that state and, on
         # hover, listing their names.
         friends_row = ctk.CTkFrame(self, fg_color="transparent")
-        friends_row.grid(row=3, column=0, padx=6, pady=(0, 6))
-        ctk.CTkLabel(friends_row, text="\U0001F465", font=ctk.CTkFont(size=11)).grid(
-            row=0, column=0, padx=(0, 4)
+        friends_row.grid(row=3, column=0, padx=2, pady=(0, 3), sticky="ew")
+        friends_row.grid_columnconfigure(tuple(range(6)), weight=1)
+        ctk.CTkLabel(friends_row, text="\U0001F465", font=ctk.CTkFont(size=13)).grid(
+            row=0, column=0, padx=(2, 4)
         )
         self._dot_labels: dict[BlueprintStatus, ctk.CTkLabel] = {}
         for i, dot_status in enumerate(BlueprintStatus, start=1):
             _, fg, _ = STATUS_COLORS[dot_status]
-            dot = ctk.CTkLabel(friends_row, text="●0", font=ctk.CTkFont(size=11), text_color=fg)
-            dot.grid(row=0, column=i, padx=2)
+            dot = ctk.CTkLabel(friends_row, text="●0", font=ctk.CTkFont(size=13), text_color=fg)
+            dot.grid(row=0, column=i, padx=4)
             Tooltip(dot, (lambda s=dot_status: self._tooltip_text_for(s)))
             self._dot_labels[dot_status] = dot
 
