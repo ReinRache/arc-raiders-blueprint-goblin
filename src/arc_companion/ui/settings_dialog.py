@@ -7,6 +7,7 @@ from supabase import Client
 
 from arc_companion.cloud.sync import ensure_session, wipe_cloud_data
 from arc_companion.storage.supabase_session import SupabaseSessionStore
+from arc_companion.ui.theme import ERROR_COLOR, NEUTRAL_BUTTON_BORDER_COLOR, NEUTRAL_BUTTON_COLOR, SUCCESS_COLOR_LIGHT
 
 # Not a secret, not user-specific -- the designer's own donation link.
 SUPPORT_URL = "https://buymeacoffee.com/alwaysbegoblin"
@@ -55,9 +56,9 @@ class SettingsDialog(ctk.CTkToplevel):
         self.delete_data_button = ctk.CTkButton(
             frame,
             text="Delete My Data",
-            fg_color="#2B2B2B",
+            fg_color=NEUTRAL_BUTTON_COLOR,
             border_width=1,
-            border_color="#555555",
+            border_color=NEUTRAL_BUTTON_BORDER_COLOR,
             command=self._on_delete_data_clicked,
         )
         self.delete_data_button.grid(row=0, column=0, sticky="w")
@@ -105,8 +106,8 @@ class SettingsDialog(ctk.CTkToplevel):
         self._wipe_in_flight = False
         self.delete_data_button.configure(state="normal")
         if success:
-            self.delete_data_status_msg.configure(text="Cloud data deleted.", text_color="#81C784")
+            self.delete_data_status_msg.configure(text="Cloud data deleted.", text_color=SUCCESS_COLOR_LIGHT)
         else:
             self.delete_data_status_msg.configure(
-                text="Delete failed — check your connection.", text_color="#E57373"
+                text="Delete failed — check your connection.", text_color=ERROR_COLOR
             )

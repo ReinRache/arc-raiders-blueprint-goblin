@@ -8,7 +8,7 @@ from PIL import Image
 from arc_companion.data.blueprints import IMAGES_DIR, Blueprint
 from arc_companion.domain.friends import FriendStatusCounts, Highlight, compute_highlight
 from arc_companion.domain.status import BlueprintStatus
-from arc_companion.ui.theme import HIGHLIGHT_COLORS, STATUS_COLORS
+from arc_companion.ui.theme import HIGHLIGHT_COLORS, PLACEHOLDER_ICON_COLOR, STATUS_COLORS
 from arc_companion.ui.tooltip import Tooltip
 
 # Header line shown above the friend-name list in each dot's hover tooltip --
@@ -125,7 +125,7 @@ class BlueprintCard(ctk.CTkFrame):
             self.icon_label.grid(row=0, column=0, padx=5, pady=(4, 2))
         else:
             placeholder = ctk.CTkFrame(
-                self, width=_ICON_SIZE[0], height=_ICON_SIZE[1], fg_color="#1F538D", corner_radius=4
+                self, width=_ICON_SIZE[0], height=_ICON_SIZE[1], fg_color=PLACEHOLDER_ICON_COLOR, corner_radius=4
             )
             placeholder.grid_propagate(False)
             placeholder.grid(row=0, column=0, padx=5, pady=(4, 2))

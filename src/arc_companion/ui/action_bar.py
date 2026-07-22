@@ -4,6 +4,13 @@ from collections.abc import Callable
 import customtkinter as ctk
 
 from arc_companion.domain.time_format import format_sync_age
+from arc_companion.ui.theme import (
+    ACCENT_COLOR,
+    ACTION_BAR_BORDER_COLOR,
+    NEUTRAL_BUTTON_BORDER_COLOR,
+    NEUTRAL_BUTTON_COLOR,
+    SUCCESS_COLOR,
+)
 
 # How often the "last synced" label re-renders while idle -- the bucket a
 # given timestamp falls into (e.g. "<1 min" -> "1 min ago") changes just by
@@ -15,18 +22,18 @@ _SYNC_AGE_TICK_MS = 30_000
 # with nothing local to push, so the label says what it'll actually do.
 _SYNC_IDLE_STYLE = {
     "text": "Sync Friends",
-    "fg_color": "#2B2B2B",
+    "fg_color": NEUTRAL_BUTTON_COLOR,
     "border_width": 1,
-    "border_color": "#555555",
+    "border_color": NEUTRAL_BUTTON_BORDER_COLOR,
     "state": "normal",
 }
 # Dirty: local changes are pending — "lit up" so it's obvious there's something
 # to sync, and the label reflects that this push covers more than friends now.
 _SYNC_DIRTY_STYLE = {
     "text": "Sync All",
-    "fg_color": "#1F6AA5",
+    "fg_color": ACCENT_COLOR,
     "border_width": 0,
-    "border_color": "#1F6AA5",
+    "border_color": ACCENT_COLOR,
     "state": "normal",
 }
 
@@ -40,7 +47,7 @@ class ActionBar(ctk.CTkFrame):
         **kwargs,
     ):
         super().__init__(
-            master, height=60, corner_radius=0, border_width=1, border_color="#2A2A2A", **kwargs
+            master, height=60, corner_radius=0, border_width=1, border_color=ACTION_BAR_BORDER_COLOR, **kwargs
         )
         self.grid_propagate(False)
         self.grid_columnconfigure(0, weight=0)
@@ -50,7 +57,7 @@ class ActionBar(ctk.CTkFrame):
         self._last_synced_at: int | None = None
 
         self.status_label = ctk.CTkLabel(
-            self, text="Storage: Local + Cloud (Supabase)", text_color="#4CAF50"
+            self, text="Storage: Local + Cloud (Supabase)", text_color=SUCCESS_COLOR
         )
         self.status_label.grid(row=0, column=0, padx=20, pady=15, sticky="w")
 

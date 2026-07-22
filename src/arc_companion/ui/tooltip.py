@@ -2,6 +2,8 @@ import tkinter
 
 import customtkinter as ctk
 
+from arc_companion.ui.theme import TOOLTIP_BG_COLOR, TOOLTIP_FG_COLOR
+
 
 class Tooltip:
     """Hover tooltip for a widget -- CTk has no built-in equivalent. Binds
@@ -26,8 +28,8 @@ class Tooltip:
         label = tkinter.Label(
             self._popup,
             text=text,
-            background="#1F1F1F",
-            foreground="#EEEEEE",
+            background=TOOLTIP_BG_COLOR,
+            foreground=TOOLTIP_FG_COLOR,
             borderwidth=1,
             relief="solid",
             padx=6,

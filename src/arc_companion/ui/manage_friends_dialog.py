@@ -16,6 +16,7 @@ from arc_companion.domain.friends import discoverable_steam_friends
 from arc_companion.identity import AddFriendError, add_friend
 from arc_companion.steam import openid_auth
 from arc_companion.storage.supabase_session import SupabaseSessionStore
+from arc_companion.ui.theme import ERROR_COLOR, NEUTRAL_BUTTON_BORDER_COLOR, NEUTRAL_BUTTON_COLOR, SUCCESS_COLOR_LIGHT
 
 
 class ManageFriendsDialog(ctk.CTkToplevel):
@@ -116,7 +117,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.friend_entry.grid(row=0, column=0, padx=(0, 8))
         ctk.CTkButton(add_row, text="Add", width=80, command=self._on_add_friend).grid(row=0, column=1)
 
-        self.friend_error_label = ctk.CTkLabel(frame, text="", text_color="#E57373")
+        self.friend_error_label = ctk.CTkLabel(frame, text="", text_color=ERROR_COLOR)
         self.friend_error_label.grid(row=3, column=0, sticky="w", pady=(4, 4))
 
         self.friends_list_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -139,9 +140,9 @@ class ManageFriendsDialog(ctk.CTkToplevel):
                 row,
                 text="Remove",
                 width=70,
-                fg_color="#2B2B2B",
+                fg_color=NEUTRAL_BUTTON_COLOR,
                 border_width=1,
-                border_color="#555555",
+                border_color=NEUTRAL_BUTTON_BORDER_COLOR,
                 command=lambda f=friend_id: self._on_remove_friend(f),
             ).grid(row=0, column=1)
 
@@ -211,7 +212,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
 
     def _refresh_steam_status(self) -> None:
         if self.steam_id:
-            self.steam_status_label.configure(text=f"Linked as {self.steam_id}", text_color="#81C784")
+            self.steam_status_label.configure(text=f"Linked as {self.steam_id}", text_color=SUCCESS_COLOR_LIGHT)
             self.steam_button.configure(text="Switch Account")
         else:
             self.steam_status_label.configure(text="Not linked", text_color="gray")
@@ -365,7 +366,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self._refresh_discover_button_state()
 
         if error is not None:
-            self.discover_status_msg.configure(text=error, text_color="#E57373")
+            self.discover_status_msg.configure(text=error, text_color=ERROR_COLOR)
             return
 
         self._discover_candidates = candidates or []
@@ -409,7 +410,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self._render_friends_list()
         self.on_friends_changed(self.friend_ids)
         self.discover_status_msg.configure(
-            text=f"Added {len(selected_ids)} friend(s)." if selected_ids else "", text_color="#81C784"
+            text=f"Added {len(selected_ids)} friend(s)." if selected_ids else "", text_color=SUCCESS_COLOR_LIGHT
         )
         self._clear_discover_results()
         self._discover_candidates = []

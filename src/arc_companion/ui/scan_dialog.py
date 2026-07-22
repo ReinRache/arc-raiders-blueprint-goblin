@@ -16,6 +16,14 @@ from arc_companion.vision.import_merge import (
     validate_pair,
     validate_screenshot,
 )
+from arc_companion.ui.theme import (
+    DESTRUCTIVE_COLOR,
+    DESTRUCTIVE_HOVER_COLOR,
+    ERROR_COLOR,
+    NEUTRAL_BUTTON_COLOR,
+    SUCCESS_COLOR_LIGHT,
+    WARNING_COLOR,
+)
 
 _FILETYPES = [("PNG images", "*.png"), ("All files", "*.*")]
 
@@ -101,7 +109,7 @@ class ScanDialog(ctk.CTkToplevel):
         )
         self.step1_next_btn.grid(row=0, column=1, sticky="e")
         ctk.CTkButton(
-            self.nav_frame, text="Cancel", width=100, fg_color="#2B2B2B", command=self.destroy
+            self.nav_frame, text="Cancel", width=100, fg_color=NEUTRAL_BUTTON_COLOR, command=self.destroy
         ).grid(row=0, column=0, sticky="w")
 
     def _pick_top(self) -> None:
@@ -139,7 +147,7 @@ class ScanDialog(ctk.CTkToplevel):
         )
         self.step2_next_btn.grid(row=0, column=1, sticky="e")
         ctk.CTkButton(
-            self.nav_frame, text="Back", width=100, fg_color="#2B2B2B", command=self._show_step1
+            self.nav_frame, text="Back", width=100, fg_color=NEUTRAL_BUTTON_COLOR, command=self._show_step1
         ).grid(row=0, column=0, sticky="w")
 
     def _pick_bottom(self) -> None:
@@ -161,7 +169,7 @@ class ScanDialog(ctk.CTkToplevel):
         image = sr.load_image(path)
         result = validate_screenshot(image, expect_pinned_top=expect_pinned_top)
         if not result.ok:
-            status_label.configure(text="\n".join([*messages, f"✗ {result.error}"]), text_color="#E57373")
+            status_label.configure(text="\n".join([*messages, f"✗ {result.error}"]), text_color=ERROR_COLOR)
             next_btn.configure(state="disabled")
             setattr(self, store_attr, None)
             return
@@ -170,7 +178,7 @@ class ScanDialog(ctk.CTkToplevel):
             pair_result = validate_pair(self.top_grid, result.grid_result)
             if not pair_result.ok:
                 status_label.configure(
-                    text="\n".join([*messages, f"✗ {pair_result.error}"]), text_color="#E57373"
+                    text="\n".join([*messages, f"✗ {pair_result.error}"]), text_color=ERROR_COLOR
                 )
                 next_btn.configure(state="disabled")
                 setattr(self, store_attr, None)
@@ -178,7 +186,7 @@ class ScanDialog(ctk.CTkToplevel):
 
         setattr(self, store_attr, result.grid_result)
         messages.append("✓ Looks good.")
-        status_label.configure(text="\n".join(messages), text_color="#81C784")
+        status_label.configure(text="\n".join(messages), text_color=SUCCESS_COLOR_LIGHT)
         next_btn.configure(state="normal")
 
     # ---- Step 3: review + apply ---------------------------------------------------
@@ -227,15 +235,15 @@ class ScanDialog(ctk.CTkToplevel):
                 ),
                 wraplength=480,
                 justify="left",
-                text_color="#FFB74D",
+                text_color=WARNING_COLOR,
             ).grid(row=1, column=0, sticky="w", pady=(0, 10))
 
             ctk.CTkButton(
                 self.nav_frame,
                 text="Apply as Expedition Reset",
                 width=200,
-                fg_color="#C62828",
-                hover_color="#B71C1C",
+                fg_color=DESTRUCTIVE_COLOR,
+                hover_color=DESTRUCTIVE_HOVER_COLOR,
                 command=self._apply_full_reset,
             ).grid(row=0, column=1, sticky="e", padx=(8, 0))
             ctk.CTkButton(
@@ -247,7 +255,7 @@ class ScanDialog(ctk.CTkToplevel):
             ).grid(row=0, column=2, sticky="e")
 
         ctk.CTkButton(
-            self.nav_frame, text="Back", width=100, fg_color="#2B2B2B", command=self._show_step2
+            self.nav_frame, text="Back", width=100, fg_color=NEUTRAL_BUTTON_COLOR, command=self._show_step2
         ).grid(row=0, column=0, sticky="w")
 
     def _apply_upgrade_only(self) -> None:

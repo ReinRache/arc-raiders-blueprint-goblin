@@ -75,7 +75,6 @@ def find_panel(image: np.ndarray) -> bool:
 
 
 def _scrollbar_thumb_bounds(image: np.ndarray, geometry: GridGeometry) -> tuple[int, int] | None:
-    height = image.shape[0]
     scrollbar_x = round(geometry.scrollbar_x)
     if scrollbar_x >= image.shape[1]:
         return None
@@ -83,7 +82,26 @@ def _scrollbar_thumb_bounds(image: np.ndarray, geometry: GridGeometry) -> tuple[
     bright_ys = np.where(brightness > 200)[0]
     if len(bright_ys) == 0:
         return None
-    return int(bright_ys.min()), int(bright_ys.max())
+    # The real thumb is one contiguous bright run, but a bright spot in the
+    # blurred game scene behind the panel (e.g. a light source) can bleed
+    # through the panel's translucent background at this same x-coordinate
+    # and show up as its own short, separate run elsewhere in the column --
+    # confirmed against real screenshots where this produced a bogus,
+    # much-too-tall combined span from a naive global min/max. Taking the
+    # longest contiguous run instead is immune to that: the thumb always
+    # spans a large, fixed fraction of the track (ROWS_PER_VIEWPORT of
+    # TOTAL_ROWS), far longer than a stray few-pixel bright spot.
+    runs: list[tuple[int, int]] = []
+    run_start = bright_ys[0]
+    prev = bright_ys[0]
+    for y in bright_ys[1:]:
+        if y != prev + 1:
+            runs.append((run_start, prev))
+            run_start = y
+        prev = y
+    runs.append((run_start, prev))
+    thumb_top, thumb_bottom = max(runs, key=lambda run: run[1] - run[0])
+    return int(thumb_top), int(thumb_bottom)
 
 
 def is_pinned_top(image: np.ndarray) -> bool:

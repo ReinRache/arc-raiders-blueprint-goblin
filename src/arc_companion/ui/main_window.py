@@ -20,6 +20,7 @@ from arc_companion.ui.manage_friends_dialog import ManageFriendsDialog
 from arc_companion.ui.scan_dialog import ScanDialog
 from arc_companion.ui.settings_dialog import SettingsDialog
 from arc_companion.ui.sidebar import SIDEBAR_WIDTH, Sidebar
+from arc_companion.ui.theme import ERROR_COLOR, SUCCESS_COLOR
 
 # Non-sidebar portion of the gap between the window's width and the
 # blueprint grid's actual usable (canvas) width: main_view horizontal
@@ -209,7 +210,7 @@ class MainWindow(ctk.CTk):
             return
         self._sync_in_flight = True
         self.action_bar.btn_sync.configure(state="disabled")
-        self.action_bar.set_sync_status("Syncing & refreshing friends...", "#4CAF50")
+        self.action_bar.set_sync_status("Syncing & refreshing friends...", SUCCESS_COLOR)
 
         # Snapshot now, on the Tk thread, rather than reading self.user_state
         # from the background thread -- avoids pushing a state that's half
@@ -288,7 +289,7 @@ class MainWindow(ctk.CTk):
         self._sync_in_flight = False
         if not success:
             self.action_bar.btn_sync.configure(state="normal")
-            self.action_bar.set_sync_status("Sync failed — check your connection", "#E57373")
+            self.action_bar.set_sync_status("Sync failed — check your connection", ERROR_COLOR)
             return
 
         self.dirty = False
@@ -298,7 +299,7 @@ class MainWindow(ctk.CTk):
             self.user_state.steam_persona_name = resolved_own_name
         self.store.save_state(self.user_state)
         self.action_bar.set_last_synced_at(self.user_state.last_synced_at)
-        self.action_bar.set_sync_status("Storage: Local + Cloud (Supabase) — Synced", "#4CAF50")
+        self.action_bar.set_sync_status("Storage: Local + Cloud (Supabase) — Synced", SUCCESS_COLOR)
         self.title_name_label.configure(text=self._display_name())
 
         if friend_snapshots is not None:
