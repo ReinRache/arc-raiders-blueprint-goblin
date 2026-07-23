@@ -23,6 +23,13 @@ class UserState:
     # never included in push_profile's payload. None falls back to
     # arbg_user_id everywhere this is displayed.
     steam_persona_name: str | None = None
+    # Proves ownership of arbg_user_id to the reclaim_profile RPC if this
+    # install's supabase_session.json is ever lost but config.json survives
+    # (see cloud/sync.py's push_profile_with_recovery). Local-only, like
+    # last_synced_at/steam_persona_name -- never included in push_profile's
+    # payload; sent only via the dedicated set_recovery_secret/
+    # reclaim_profile RPCs, never as a plain table column write.
+    recovery_secret: str | None = None
 
 
 class Store(ABC):

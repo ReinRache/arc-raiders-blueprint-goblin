@@ -6,10 +6,12 @@ from arc_companion.identity import (
     AddFriendError,
     add_friend,
     generate_arbg_id,
+    generate_recovery_secret,
     is_valid_arbg_id,
 )
 
 _CODE_PATTERN = re.compile(r"^GBLN-[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{5}$")
+_RECOVERY_SECRET_PATTERN = re.compile(r"^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{32}$")
 
 
 def test_generate_arbg_id_matches_expected_format():
@@ -23,6 +25,19 @@ def test_generate_arbg_id_is_reasonably_unique():
     # 31^5 possible codes; 500 draws colliding would be statistically absurd
     # unless generation is broken (e.g. always returning the same value).
     assert len(codes) == 500
+
+
+def test_generate_recovery_secret_matches_expected_format():
+    for _ in range(200):
+        secret = generate_recovery_secret()
+        assert _RECOVERY_SECRET_PATTERN.match(secret), secret
+
+
+def test_generate_recovery_secret_is_reasonably_unique():
+    secrets_generated = {generate_recovery_secret() for _ in range(500)}
+    # 32^32 possible secrets; 500 draws colliding would be statistically
+    # absurd unless generation is broken.
+    assert len(secrets_generated) == 500
 
 
 def test_is_valid_arbg_id_accepts_well_formed_codes():

@@ -90,3 +90,165 @@ $$;
 -- Only the service_role-authenticated Edge Function should ever call this.
 revoke all on function public.increment_steam_proxy_usage(uuid) from public;
 grant execute on function public.increment_steam_proxy_usage(uuid) to service_role;
+
+-- Orphaned-profile reclaim + stale-row cleanup — added after a real user hit
+-- `duplicate key value violates unique constraint "profiles_arbg_user_id_key"`
+-- on Sync. Cause: arbg_user_id (the local, human-shared "Goblin ID") has its
+-- own separate unique constraint from the id primary key. If a local
+-- install's supabase_session.json is ever lost/reset while config.json (and
+-- therefore arbg_user_id) survives, the next sync mints a fresh auth.uid()
+-- and tries to insert a row under the *same* arbg_user_id as before,
+-- colliding with the old row -- still sitting there under the now
+-- unreachable old auth.uid().
+--
+-- A naive reclaim (just re-parenting any row matching an arbg_user_id onto
+-- whoever asks) would be a real security regression, not just a bug fix:
+-- arbg_user_id is public by design (the friend-lookup feature depends on
+-- looking a row up by Goblin ID), so anyone could hijack any *active* row
+-- just by knowing its Goblin ID -- something today's auth.uid()-gated RLS
+-- strictly prevents. Reclaim here is instead gated on proving knowledge of a
+-- second, never-shared local secret via a server-side hash comparison.
+
+-- STEP 0 (run first, by hand, before anything below): confirm where
+-- pgcrypto/pg_cron actually live on this project rather than assuming --
+--   select extname, extnamespace::regnamespace::text as schema
+--   from pg_extension where extname in ('pgcrypto', 'pg_cron');
+-- Enable whichever is missing:
+--   create extension if not exists pgcrypto with schema extensions;
+--   create extension if not exists pg_cron;
+-- (or via Dashboard -> Database -> Extensions if a permission error blocks
+-- the SQL form) and adjust the `extensions.` qualification below if the
+-- real schema differs.
+
+-- updated_at previously only defaulted on INSERT -- push_profile's payload
+-- never sets it and there was no trigger, so an existing row's updated_at
+-- was frozen at its original creation time forever. Needed so the
+-- staleness-based cleanup below means anything.
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = pg_catalog
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create trigger profiles_set_updated_at
+before update on public.profiles
+for each row
+execute function public.set_updated_at();
+
+alter table public.profiles add column recovery_secret_hash text;
+
+-- Hashes and stores the secret on the CALLER's own row only (id = auth.uid())
+-- -- this alone is already as safe as any other authenticated write to your
+-- own row. The "recovery_secret_hash is null" guard means it only ever sets
+-- once and never overwrites an existing hash, so it's safe to call
+-- unconditionally after every successful push rather than needing "is this
+-- the first sync ever" logic client-side. gen_salt('bf', 10) is standard
+-- bcrypt work-factor hardening; not actually load-bearing here since the
+-- input is a 32-character random secret, not a guessable human password.
+create or replace function public.set_recovery_secret(p_arbg_user_id text, p_secret text)
+returns void
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+begin
+  if auth.uid() is null then
+    return;
+  end if;
+
+  update public.profiles
+  set recovery_secret_hash = extensions.crypt(p_secret, extensions.gen_salt('bf', 10))
+  where id = auth.uid()
+    and arbg_user_id = p_arbg_user_id
+    and recovery_secret_hash is null;
+end;
+$$;
+
+revoke all on function public.set_recovery_secret(text, text) from public;
+grant execute on function public.set_recovery_secret(text, text) to authenticated;
+
+-- Re-parents an orphaned row (arbg_user_id matches, id doesn't) onto the
+-- caller's current auth.uid(), but only if p_secret matches the row's
+-- stored hash. One atomic UPDATE, not select-then-update -- a separate read
+-- would leave a TOCTOU window between checking the secret and re-parenting.
+-- The "not exists (caller already owns a row)" guard means this cleanly
+-- returns false instead of ever raising a raw profiles_pkey violation if
+-- the caller somehow already has their own row.
+--
+-- Not brute-forceable: a 32-character secret from a 32-character alphabet
+-- is ~1.46x10^48 possibilities, independent of and much larger than the
+-- public Goblin ID's own keyspace -- knowing/guessing the public ID grants
+-- nothing without the actual secret.
+create or replace function public.reclaim_profile(p_arbg_user_id text, p_secret text)
+returns boolean
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_row_count integer;
+begin
+  if auth.uid() is null then
+    return false;
+  end if;
+
+  update public.profiles
+  set id = auth.uid()
+  where arbg_user_id = p_arbg_user_id
+    and id <> auth.uid()
+    and recovery_secret_hash is not null
+    and extensions.crypt(p_secret, recovery_secret_hash) = recovery_secret_hash
+    and not exists (
+      select 1 from public.profiles p2 where p2.id = auth.uid()
+    );
+
+  get diagnostics v_row_count = row_count;
+  return v_row_count > 0;
+end;
+$$;
+
+revoke all on function public.reclaim_profile(text, text) from public;
+grant execute on function public.reclaim_profile(text, text) to authenticated;
+
+-- Both functions above are granted to `authenticated` only, not `anon` --
+-- both no-op when auth.uid() is null, so granting to anon would be dead
+-- weight, not a real hardening measure.
+
+-- Scheduled cleanup for rows nobody ever reclaims -- 180 days of zero
+-- activity is generous enough that no realistic casual player gets caught
+-- out just for not opening the app in a while; this is irreversible
+-- deletion, so erring long is the safer default for a first pass. Safe
+-- w.r.t. other local state: arbg_friend_user_ids/arbg_active_friend_ids are
+-- local-only, never in push_profile's payload -- a friend's row
+-- disappearing just means their tile stops showing up in the next
+-- friend-overlay refresh, no dangling reference anywhere else.
+create or replace function public.delete_stale_profiles()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_deleted integer;
+begin
+  delete from public.profiles
+  where updated_at < now() - interval '180 days';
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end;
+$$;
+
+-- No grants to anon/authenticated -- only ever invoked by the pg_cron job
+-- below, which runs as the role that scheduled it.
+revoke all on function public.delete_stale_profiles() from public;
+
+select cron.schedule(
+  'delete-stale-profiles',
+  '0 6 * * *',
+  $$select public.delete_stale_profiles();$$
+);

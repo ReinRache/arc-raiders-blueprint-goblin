@@ -1,13 +1,15 @@
 import dataclasses
 import threading
 import time
+from tkinter import messagebox
 
 import customtkinter as ctk
 
 from arc_companion.cloud.client import create_supabase_client
+from arc_companion.cloud.errors import describe_error
 from arc_companion.cloud.friends import fetch_friend_profiles
 from arc_companion.cloud.steam_proxy import get_player_summaries
-from arc_companion.cloud.sync import ensure_session, push_profile
+from arc_companion.cloud.sync import RecoveryOutcome, ensure_session, push_profile_with_recovery
 from arc_companion.data.blueprints import load_blueprints
 from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
@@ -221,7 +223,7 @@ class MainWindow(ctk.CTk):
         def worker() -> None:
             try:
                 user_id = ensure_session(self.cloud_client, self.cloud_session_store)
-                push_profile(self.cloud_client, user_id, state_snapshot)
+                outcome = push_profile_with_recovery(self.cloud_client, user_id, state_snapshot)
             except Exception as exc:
                 # The exception class name, not the full message -- always
                 # available regardless of which library raised it (httpx,
@@ -233,7 +235,7 @@ class MainWindow(ctk.CTk):
                 # manage_friends_dialog.py for why an exception object
                 # can't be closed over directly in a deferred self.after
                 # callback.
-                error_code = type(exc).__name__
+                error_code = describe_error(exc)
                 self.after(0, lambda: self._on_sync_finished(success=False, error_code=error_code))
                 return
 
@@ -285,7 +287,10 @@ class MainWindow(ctk.CTk):
             self.after(
                 0,
                 lambda: self._on_sync_finished(
-                    success=True, friend_snapshots=friend_snapshots, resolved_own_name=resolved_own_name
+                    success=True,
+                    friend_snapshots=friend_snapshots,
+                    resolved_own_name=resolved_own_name,
+                    outcome=outcome,
                 ),
             )
 
@@ -297,6 +302,7 @@ class MainWindow(ctk.CTk):
         friend_snapshots: dict[str, FriendProfileSnapshot] | None = None,
         resolved_own_name: str | None = None,
         error_code: str | None = None,
+        outcome: RecoveryOutcome | None = None,
     ) -> None:
         self._sync_in_flight = False
         if not success:
@@ -309,10 +315,27 @@ class MainWindow(ctk.CTk):
         self.user_state.last_synced_at = int(time.time())
         if resolved_own_name is not None:
             self.user_state.steam_persona_name = resolved_own_name
+        # A collision against an orphaned row from a lost session (see
+        # cloud/sync.py:push_profile_with_recovery) that couldn't be
+        # reclaimed -- the old Goblin ID is gone, this is the new one. Real
+        # identity change, shown as a real dialog the user has to
+        # acknowledge, not a transient status-bar color change they could
+        # easily miss.
+        if outcome is not None and outcome.regenerated:
+            self.user_state.arbg_user_id = outcome.new_arbg_user_id
+            self.user_state.recovery_secret = outcome.new_recovery_secret
         self.store.save_state(self.user_state)
         self.action_bar.set_last_synced_at(self.user_state.last_synced_at)
         self.action_bar.set_sync_status("Storage: Local + Cloud (Supabase) — Synced", SUCCESS_COLOR)
         self.title_name_label.configure(text=self._display_name())
+        if outcome is not None and outcome.regenerated:
+            messagebox.showwarning(
+                "Goblin ID Changed",
+                "Your old Goblin ID couldn't be recovered on this device, so a new one "
+                f"was generated: {self.user_state.arbg_user_id}\n\n"
+                "Share this with your friends again — your old ID no longer works.",
+                parent=self,
+            )
 
         if friend_snapshots is not None:
             self.friends_cache = friend_snapshots

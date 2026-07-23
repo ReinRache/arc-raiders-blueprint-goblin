@@ -4,6 +4,7 @@ from collections.abc import Callable
 import customtkinter as ctk
 from supabase import Client
 
+from arc_companion.cloud.errors import describe_error
 from arc_companion.cloud.friends import fetch_profiles_by_steam_ids
 from arc_companion.cloud.steam_proxy import (
     SteamFriendsListPrivateError,
@@ -337,7 +338,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
                 # reporting back instead of a dead-end generic message.
                 # Captured now, not inside the lambda -- see the comment
                 # on the SteamFriendsListPrivateError branch above.
-                error_code = type(exc).__name__
+                error_code = describe_error(exc)
                 self.after(
                     0, lambda: self._on_discover_finished(error=f"Search failed ({error_code}) — check your connection.")
                 )
@@ -347,7 +348,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
                 matched = fetch_profiles_by_steam_ids(self.cloud_client, steam_friend_ids)
                 candidates = discoverable_steam_friends(steam_friend_ids, matched, friend_ids_snapshot)
             except Exception as exc:
-                error_code = type(exc).__name__
+                error_code = describe_error(exc)
                 self.after(
                     0, lambda: self._on_discover_finished(error=f"Search failed ({error_code}) — check your connection.")
                 )

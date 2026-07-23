@@ -13,6 +13,7 @@ def test_load_state_missing_file_generates_fresh_identity(tmp_path):
     assert state.blueprints_owned == []
     assert state.blueprints_wanted == []
     assert state.blueprints_spare == []
+    assert state.recovery_secret  # non-empty -- generated fresh alongside arbg_user_id
 
 
 def test_save_and_reload_round_trip(tmp_path):
@@ -35,6 +36,7 @@ def test_save_and_reload_round_trip(tmp_path):
     assert reloaded.blueprints_wanted == [9]
     assert reloaded.blueprints_spare == [12]
     assert reloaded.updated_at > 0
+    assert reloaded.recovery_secret == state.recovery_secret
 
 
 def test_identity_is_stable_across_reloads(tmp_path):
@@ -44,6 +46,7 @@ def test_identity_is_stable_across_reloads(tmp_path):
 
     second = LocalJSONStore(path=path).load_state()
     assert second.arbg_user_id == first.arbg_user_id
+    assert second.recovery_secret == first.recovery_secret
 
 
 def test_migrates_legacy_local_user_placeholder_without_losing_progress(tmp_path):
@@ -80,3 +83,18 @@ def test_migrates_legacy_file_missing_arbg_id_field_entirely(tmp_path):
     assert is_valid_arbg_id(state.arbg_user_id)
     assert state.steam_id == "76561198000000000"  # a real steam_id is preserved, not just the placeholder
     assert state.blueprints_owned == [5]
+
+
+def test_backfills_recovery_secret_for_file_predating_the_field(tmp_path):
+    # An install that existed before push_profile_with_recovery shipped --
+    # has a real arbg_user_id already, just no recovery_secret key at all.
+    path = tmp_path / "config.json"
+    path.write_text(
+        json.dumps({"arbg_user_id": "GBLN-ABCDE", "blueprints_owned": [1]}),
+        encoding="utf-8",
+    )
+
+    state = LocalJSONStore(path=path).load_state()
+    assert state.arbg_user_id == "GBLN-ABCDE"  # untouched -- only recovery_secret is backfilled
+    assert state.recovery_secret  # non-empty -- generated fresh
+    assert state.blueprints_owned == [1]

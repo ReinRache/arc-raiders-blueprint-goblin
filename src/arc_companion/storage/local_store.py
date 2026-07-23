@@ -2,7 +2,7 @@ import json
 import time
 from pathlib import Path
 
-from arc_companion.identity import generate_arbg_id
+from arc_companion.identity import generate_arbg_id, generate_recovery_secret
 from arc_companion.paths import user_data_root
 from arc_companion.storage.base import Store, UserState
 
@@ -19,7 +19,7 @@ class LocalJSONStore(Store):
 
     def load_state(self, user_id: str | None = None) -> UserState:
         if not self.path.exists():
-            return UserState(arbg_user_id=generate_arbg_id())
+            return UserState(arbg_user_id=generate_arbg_id(), recovery_secret=generate_recovery_secret())
         data = json.loads(self.path.read_text(encoding="utf-8"))
 
         # Migrate an old-format file (from before arbg_user_id existed):
@@ -29,6 +29,12 @@ class LocalJSONStore(Store):
         steam_id = data.get("steam_id")
         if steam_id == _LEGACY_LOCAL_USER_PLACEHOLDER:
             steam_id = None
+        # Same treatment for recovery_secret -- a config.json written before
+        # the reclaim feature existed won't have one; backfill it just like
+        # arbg_user_id above so an existing install can start using
+        # push_profile_with_recovery on its next sync instead of never being
+        # able to reclaim at all.
+        recovery_secret = data.get("recovery_secret") or generate_recovery_secret()
 
         return UserState(
             arbg_user_id=arbg_user_id,
@@ -41,6 +47,7 @@ class LocalJSONStore(Store):
             updated_at=data.get("updated_at", 0),
             last_synced_at=data.get("last_synced_at"),
             steam_persona_name=data.get("steam_persona_name"),
+            recovery_secret=recovery_secret,
         )
 
     def save_state(self, state: UserState) -> None:
@@ -58,6 +65,7 @@ class LocalJSONStore(Store):
                     "updated_at": state.updated_at,
                     "last_synced_at": state.last_synced_at,
                     "steam_persona_name": state.steam_persona_name,
+                    "recovery_secret": state.recovery_secret,
                 },
                 indent=2,
             ),

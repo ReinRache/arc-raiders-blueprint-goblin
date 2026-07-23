@@ -1,8 +1,29 @@
 from types import SimpleNamespace
 
-from arc_companion.cloud.sync import ensure_session, push_profile, wipe_cloud_data
+import pytest
+from postgrest.exceptions import APIError
+
+from arc_companion.cloud.sync import (
+    RecoveryOutcome,
+    _is_arbg_id_conflict,
+    ensure_session,
+    push_profile,
+    push_profile_with_recovery,
+    wipe_cloud_data,
+)
 from arc_companion.storage.base import UserState
 from arc_companion.storage.supabase_session import SupabaseSession, SupabaseSessionStore
+
+
+def _arbg_id_conflict_error() -> APIError:
+    return APIError(
+        {
+            "message": 'duplicate key value violates unique constraint "profiles_arbg_user_id_key"',
+            "code": "23505",
+            "hint": None,
+            "details": None,
+        }
+    )
 
 
 def _auth_response(access_token: str, refresh_token: str, user_id: str) -> SimpleNamespace:
@@ -31,12 +52,15 @@ class FakeAuth:
 
 
 class FakeTableQuery:
-    def __init__(self, table: str, recorder: list):
+    def __init__(self, table: str, recorder: list, client: "FakeClient"):
         self.table = table
         self.recorder = recorder
+        self._client = client
+        self._is_upsert = False
 
     def upsert(self, payload):
         self.recorder.append(("upsert", self.table, payload))
+        self._is_upsert = True
         return self
 
     def update(self, payload):
@@ -48,16 +72,39 @@ class FakeTableQuery:
         return self
 
     def execute(self):
+        # Consumed in order -- lets a test simulate "first upsert raises
+        # (e.g. the arbg_user_id collision), retried upsert succeeds" by
+        # passing a single-item list, with no extra bookkeeping needed:
+        # once the queue is empty, every further call just succeeds.
+        if self._is_upsert and self._client.upsert_side_effects:
+            effect = self._client.upsert_side_effects.pop(0)
+            if effect is not None:
+                raise effect
         return SimpleNamespace(data=[])
 
 
+class FakeRPCQuery:
+    def __init__(self, response):
+        self._response = response
+
+    def execute(self):
+        return SimpleNamespace(data=self._response)
+
+
 class FakeClient:
-    def __init__(self, auth: FakeAuth):
+    def __init__(self, auth: FakeAuth, upsert_side_effects=None, rpc_responses=None):
         self.auth = auth
         self.calls: list = []
+        self.rpc_calls: list = []
+        self.upsert_side_effects: list = list(upsert_side_effects) if upsert_side_effects else []
+        self._rpc_responses = rpc_responses or {}
 
     def table(self, name: str) -> FakeTableQuery:
-        return FakeTableQuery(name, self.calls)
+        return FakeTableQuery(name, self.calls, self)
+
+    def rpc(self, fn: str, params: dict) -> FakeRPCQuery:
+        self.rpc_calls.append((fn, params))
+        return FakeRPCQuery(self._rpc_responses.get(fn))
 
 
 def test_ensure_session_signs_in_anonymously_when_no_saved_session(tmp_path):
@@ -149,3 +196,156 @@ def test_wipe_cloud_data_clears_arrays_for_own_row():
         ),
         ("eq", "id", "user-123"),
     ]
+
+
+# ---- _is_arbg_id_conflict ---------------------------------------------------
+
+
+def test_is_arbg_id_conflict_true_for_the_real_shape():
+    assert _is_arbg_id_conflict(_arbg_id_conflict_error())
+
+
+def test_is_arbg_id_conflict_false_for_right_code_wrong_constraint():
+    exc = APIError(
+        {
+            "message": 'duplicate key value violates unique constraint "some_other_key"',
+            "code": "23505",
+            "hint": None,
+            "details": None,
+        }
+    )
+    assert not _is_arbg_id_conflict(exc)
+
+
+def test_is_arbg_id_conflict_false_for_wrong_code_right_message():
+    exc = APIError(
+        {
+            "message": 'duplicate key value violates unique constraint "profiles_arbg_user_id_key"',
+            "code": "23000",
+            "hint": None,
+            "details": None,
+        }
+    )
+    assert not _is_arbg_id_conflict(exc)
+
+
+def test_is_arbg_id_conflict_false_for_non_api_error():
+    assert not _is_arbg_id_conflict(ConnectionError("boom"))
+
+
+# ---- push_profile_with_recovery ---------------------------------------------
+
+
+def _user_state(**overrides) -> UserState:
+    defaults = dict(arbg_user_id="GBLN-23456", recovery_secret="s3cr3t" * 5)
+    defaults.update(overrides)
+    return UserState(**defaults)
+
+
+def test_push_profile_with_recovery_calls_set_recovery_secret_after_normal_push():
+    client = FakeClient(FakeAuth())
+    user_state = _user_state()
+
+    outcome = push_profile_with_recovery(client, "user-1", user_state)
+
+    assert outcome == RecoveryOutcome()
+    assert client.rpc_calls == [
+        ("set_recovery_secret", {"p_arbg_user_id": "GBLN-23456", "p_secret": user_state.recovery_secret})
+    ]
+
+
+def test_push_profile_with_recovery_skips_set_recovery_secret_when_none_locally():
+    client = FakeClient(FakeAuth())
+    user_state = _user_state(recovery_secret=None)
+
+    outcome = push_profile_with_recovery(client, "user-1", user_state)
+
+    assert outcome == RecoveryOutcome()
+    assert client.rpc_calls == []
+
+
+def test_push_profile_with_recovery_reclaims_on_conflict_when_secret_matches():
+    client = FakeClient(
+        FakeAuth(),
+        upsert_side_effects=[_arbg_id_conflict_error()],
+        rpc_responses={"reclaim_profile": True},
+    )
+    user_state = _user_state()
+
+    outcome = push_profile_with_recovery(client, "user-1", user_state)
+
+    assert outcome == RecoveryOutcome(reclaimed=True)
+    upsert_calls = [c for c in client.calls if c[0] == "upsert"]
+    assert len(upsert_calls) == 2  # the failed attempt, then the retry after reclaiming
+    assert upsert_calls[0] == upsert_calls[1]  # same payload both times -- same identity throughout
+    assert client.rpc_calls == [
+        ("reclaim_profile", {"p_arbg_user_id": "GBLN-23456", "p_secret": user_state.recovery_secret}),
+        ("set_recovery_secret", {"p_arbg_user_id": "GBLN-23456", "p_secret": user_state.recovery_secret}),
+    ]
+
+
+def test_push_profile_with_recovery_regenerates_identity_when_reclaim_returns_false():
+    client = FakeClient(
+        FakeAuth(),
+        upsert_side_effects=[_arbg_id_conflict_error()],
+        rpc_responses={"reclaim_profile": False},
+    )
+    user_state = _user_state()
+
+    outcome = push_profile_with_recovery(client, "user-1", user_state)
+
+    assert outcome.regenerated is True
+    assert outcome.reclaimed is False
+    assert outcome.new_arbg_user_id is not None
+    assert outcome.new_arbg_user_id != user_state.arbg_user_id
+    assert outcome.new_recovery_secret is not None
+    assert outcome.new_recovery_secret != user_state.recovery_secret
+
+    upsert_calls = [c for c in client.calls if c[0] == "upsert"]
+    assert len(upsert_calls) == 2
+    assert upsert_calls[1][2]["arbg_user_id"] == outcome.new_arbg_user_id  # retried under the new identity
+
+    reclaim_call = next(c for c in client.rpc_calls if c[0] == "reclaim_profile")
+    assert reclaim_call == ("reclaim_profile", {"p_arbg_user_id": "GBLN-23456", "p_secret": user_state.recovery_secret})
+    set_secret_call = next(c for c in client.rpc_calls if c[0] == "set_recovery_secret")
+    assert set_secret_call == (
+        "set_recovery_secret",
+        {"p_arbg_user_id": outcome.new_arbg_user_id, "p_secret": outcome.new_recovery_secret},
+    )
+
+
+def test_push_profile_with_recovery_regenerates_when_no_local_secret_at_all():
+    client = FakeClient(FakeAuth(), upsert_side_effects=[_arbg_id_conflict_error()])
+    user_state = _user_state(recovery_secret=None)
+
+    outcome = push_profile_with_recovery(client, "user-1", user_state)
+
+    assert outcome.regenerated is True
+    # Nothing to try reclaiming with -- reclaim_profile should never be called.
+    assert all(call[0] != "reclaim_profile" for call in client.rpc_calls)
+
+
+def test_push_profile_with_recovery_reraises_unrelated_unique_violations():
+    other_violation = APIError(
+        {
+            "message": 'duplicate key value violates unique constraint "some_other_key"',
+            "code": "23505",
+            "hint": None,
+            "details": None,
+        }
+    )
+    client = FakeClient(FakeAuth(), upsert_side_effects=[other_violation])
+    user_state = _user_state()
+
+    with pytest.raises(APIError):
+        push_profile_with_recovery(client, "user-1", user_state)
+    assert client.rpc_calls == []
+
+
+def test_push_profile_with_recovery_reraises_non_conflict_errors_unchanged():
+    client = FakeClient(FakeAuth(), upsert_side_effects=[ConnectionError("boom")])
+    user_state = _user_state()
+
+    with pytest.raises(ConnectionError):
+        push_profile_with_recovery(client, "user-1", user_state)
+    assert client.rpc_calls == []

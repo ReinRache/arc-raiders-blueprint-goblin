@@ -5,6 +5,7 @@ from tkinter import messagebox
 import customtkinter as ctk
 from supabase import Client
 
+from arc_companion.cloud.errors import describe_error
 from arc_companion.cloud.sync import ensure_session, wipe_cloud_data
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.theme import ERROR_COLOR, NEUTRAL_BUTTON_BORDER_COLOR, NEUTRAL_BUTTON_COLOR, SUCCESS_COLOR_LIGHT
@@ -103,7 +104,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 # Captured now, not inside the lambda -- see the
                 # SteamFriendsListPrivateError precedent in
                 # manage_friends_dialog.py for why.
-                error_code = type(exc).__name__
+                error_code = describe_error(exc)
                 self.after(0, lambda: self._on_delete_data_finished(success=False, error_code=error_code))
             else:
                 self.after(0, lambda: self._on_delete_data_finished(success=True))

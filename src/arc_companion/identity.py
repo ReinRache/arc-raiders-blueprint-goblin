@@ -8,17 +8,30 @@ optional add-on, not a requirement.
 """
 
 import random
+import secrets
 
 _PREFIX = "GBLN"
 _CODE_LENGTH = 5
 # Excludes visually-ambiguous characters (0/O, 1/I/L) since these codes get
 # read aloud and pasted in chat, not just copy-pasted.
 _ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+_RECOVERY_SECRET_LENGTH = 32
 
 
 def generate_arbg_id() -> str:
     code = "".join(random.choices(_ALPHABET, k=_CODE_LENGTH))
     return f"{_PREFIX}-{code}"
+
+
+def generate_recovery_secret() -> str:
+    """A local-only secret proving ownership of a Goblin ID for the reclaim
+    flow (cloud/sync.py's push_profile_with_recovery) -- never displayed or
+    shared, unlike generate_arbg_id()'s output. Deliberately uses `secrets`,
+    not `random` -- reusing _ALPHABET is fine (it's just a safe character
+    set), but reusing `random`'s non-cryptographic Mersenne Twister here
+    would undermine the entire recovery-secret security model, which
+    depends on this being genuinely unguessable."""
+    return "".join(secrets.choice(_ALPHABET) for _ in range(_RECOVERY_SECRET_LENGTH))
 
 
 def is_valid_arbg_id(code: str) -> bool:
