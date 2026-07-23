@@ -222,8 +222,19 @@ class MainWindow(ctk.CTk):
             try:
                 user_id = ensure_session(self.cloud_client, self.cloud_session_store)
                 push_profile(self.cloud_client, user_id, state_snapshot)
-            except Exception:
-                self.after(0, lambda: self._on_sync_finished(success=False))
+            except Exception as exc:
+                # The exception class name, not the full message -- always
+                # available regardless of which library raised it (httpx,
+                # postgrest, supabase_auth all have their own exception
+                # types), short enough to show inline, and specific enough
+                # to be worth reporting back instead of a dead-end generic
+                # message. Captured now, not inside the lambda -- see the
+                # SteamFriendsListPrivateError precedent in
+                # manage_friends_dialog.py for why an exception object
+                # can't be closed over directly in a deferred self.after
+                # callback.
+                error_code = type(exc).__name__
+                self.after(0, lambda: self._on_sync_finished(success=False, error_code=error_code))
                 return
 
             # A friend-fetch failure shouldn't undo a successful push -- the
@@ -285,11 +296,12 @@ class MainWindow(ctk.CTk):
         success: bool,
         friend_snapshots: dict[str, FriendProfileSnapshot] | None = None,
         resolved_own_name: str | None = None,
+        error_code: str | None = None,
     ) -> None:
         self._sync_in_flight = False
         if not success:
             self.action_bar.btn_sync.configure(state="normal")
-            self.action_bar.set_sync_status("Sync failed — check your connection", ERROR_COLOR)
+            self.action_bar.set_sync_status(f"Sync failed ({error_code}) — check your connection", ERROR_COLOR)
             return
 
         self.dirty = False

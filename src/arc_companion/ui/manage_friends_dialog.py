@@ -330,15 +330,27 @@ class ManageFriendsDialog(ctk.CTkToplevel):
                 message = str(exc)
                 self.after(0, lambda: self._on_discover_finished(error=message))
                 return
-            except Exception:
-                self.after(0, lambda: self._on_discover_finished(error="Search failed — check your connection."))
+            except Exception as exc:
+                # Exception class name, not the full message -- always
+                # available regardless of which library raised it, short
+                # enough to show inline, specific enough to be worth
+                # reporting back instead of a dead-end generic message.
+                # Captured now, not inside the lambda -- see the comment
+                # on the SteamFriendsListPrivateError branch above.
+                error_code = type(exc).__name__
+                self.after(
+                    0, lambda: self._on_discover_finished(error=f"Search failed ({error_code}) — check your connection.")
+                )
                 return
 
             try:
                 matched = fetch_profiles_by_steam_ids(self.cloud_client, steam_friend_ids)
                 candidates = discoverable_steam_friends(steam_friend_ids, matched, friend_ids_snapshot)
-            except Exception:
-                self.after(0, lambda: self._on_discover_finished(error="Search failed — check your connection."))
+            except Exception as exc:
+                error_code = type(exc).__name__
+                self.after(
+                    0, lambda: self._on_discover_finished(error=f"Search failed ({error_code}) — check your connection.")
+                )
                 return
 
             # Resolving display names is a nicety, not required for the

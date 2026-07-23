@@ -95,19 +95,27 @@ class SettingsDialog(ctk.CTkToplevel):
             try:
                 user_id = ensure_session(self.cloud_client, self.cloud_session_store)
                 wipe_cloud_data(self.cloud_client, user_id)
-            except Exception:
-                self.after(0, lambda: self._on_delete_data_finished(success=False))
+            except Exception as exc:
+                # Exception class name, not the full message -- always
+                # available regardless of which library raised it, short
+                # enough to show inline, specific enough to be worth
+                # reporting back instead of a dead-end generic message.
+                # Captured now, not inside the lambda -- see the
+                # SteamFriendsListPrivateError precedent in
+                # manage_friends_dialog.py for why.
+                error_code = type(exc).__name__
+                self.after(0, lambda: self._on_delete_data_finished(success=False, error_code=error_code))
             else:
                 self.after(0, lambda: self._on_delete_data_finished(success=True))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    def _on_delete_data_finished(self, success: bool) -> None:
+    def _on_delete_data_finished(self, success: bool, error_code: str | None = None) -> None:
         self._wipe_in_flight = False
         self.delete_data_button.configure(state="normal")
         if success:
             self.delete_data_status_msg.configure(text="Cloud data deleted.", text_color=SUCCESS_COLOR_LIGHT)
         else:
             self.delete_data_status_msg.configure(
-                text="Delete failed — check your connection.", text_color=ERROR_COLOR
+                text=f"Delete failed ({error_code}) — check your connection.", text_color=ERROR_COLOR
             )
