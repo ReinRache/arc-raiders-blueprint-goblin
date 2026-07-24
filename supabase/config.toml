@@ -13,3 +13,6 @@ verify_jwt = true
 
 [functions.steam-friend-list]
 verify_jwt = true
+
+[functions.consolidate-steam-profiles]
+verify_jwt = true

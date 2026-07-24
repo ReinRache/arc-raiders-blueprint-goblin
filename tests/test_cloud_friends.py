@@ -8,6 +8,7 @@ class FakeSelectQuery:
         self._rows = rows
         self._filter_column: str | None = None
         self._ids_filter: set[str] | None = None
+        self._is_filters: dict[str, object] = {}
 
     def select(self, columns: str) -> "FakeSelectQuery":
         return self
@@ -17,8 +18,14 @@ class FakeSelectQuery:
         self._ids_filter = set(values)
         return self
 
+    def is_(self, column: str, value: object) -> "FakeSelectQuery":
+        self._is_filters[column] = value
+        return self
+
     def execute(self) -> SimpleNamespace:
         matched = [row for row in self._rows if row.get(self._filter_column) in self._ids_filter]
+        for column, value in self._is_filters.items():
+            matched = [row for row in matched if row.get(column) == value]
         return SimpleNamespace(data=matched)
 
 
@@ -33,9 +40,10 @@ class FakeClient:
 
 
 _ROWS = [
-    {"arbg_user_id": "GBLN-AAAAA", "steam_id": None, "blueprints_owned": [1], "blueprints_wanted": [], "blueprints_spare": []},
-    {"arbg_user_id": "GBLN-BBBBB", "steam_id": None, "blueprints_owned": [], "blueprints_wanted": [2], "blueprints_spare": []},
-    {"arbg_user_id": "GBLN-CCCCC", "steam_id": None, "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": [3]},
+    {"arbg_user_id": "GBLN-AAAAA", "steam_id": None, "blueprints_owned": [1], "blueprints_wanted": [], "blueprints_spare": [], "obsoleted_at": None},
+    {"arbg_user_id": "GBLN-BBBBB", "steam_id": None, "blueprints_owned": [], "blueprints_wanted": [2], "blueprints_spare": [], "obsoleted_at": None},
+    {"arbg_user_id": "GBLN-CCCCC", "steam_id": None, "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": [3], "obsoleted_at": None},
+    {"arbg_user_id": "GBLN-DDDDD", "steam_id": None, "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": [], "obsoleted_at": "2026-01-01T00:00:00Z"},
 ]
 
 
@@ -58,10 +66,17 @@ def test_fetch_friend_profiles_empty_list_short_circuits_without_querying():
     assert client.table_calls == []
 
 
+def test_fetch_friend_profiles_excludes_obsoleted_rows():
+    client = FakeClient(_ROWS)
+    result = fetch_friend_profiles(client, ["GBLN-AAAAA", "GBLN-DDDDD"])
+    assert [row["arbg_user_id"] for row in result] == ["GBLN-AAAAA"]
+
+
 _STEAM_LINKED_ROWS = [
-    {"arbg_user_id": "GBLN-AAAAA", "steam_id": "111", "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": []},
-    {"arbg_user_id": "GBLN-BBBBB", "steam_id": "222", "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": []},
-    {"arbg_user_id": "GBLN-CCCCC", "steam_id": None, "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": []},
+    {"arbg_user_id": "GBLN-AAAAA", "steam_id": "111", "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": [], "obsoleted_at": None},
+    {"arbg_user_id": "GBLN-BBBBB", "steam_id": "222", "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": [], "obsoleted_at": None},
+    {"arbg_user_id": "GBLN-CCCCC", "steam_id": None, "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": [], "obsoleted_at": None},
+    {"arbg_user_id": "GBLN-DDDDD", "steam_id": "111", "blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": [], "obsoleted_at": "2026-01-01T00:00:00Z"},
 ]
 
 
@@ -76,3 +91,11 @@ def test_fetch_profiles_by_steam_ids_empty_list_short_circuits():
     result = fetch_profiles_by_steam_ids(client, [])
     assert result == []
     assert client.table_calls == []
+
+
+def test_fetch_profiles_by_steam_ids_excludes_obsoleted_rows():
+    # Both GBLN-AAAAA and the obsoleted GBLN-DDDDD share steam_id "111" --
+    # only the active one should come back.
+    client = FakeClient(_STEAM_LINKED_ROWS)
+    result = fetch_profiles_by_steam_ids(client, ["111"])
+    assert [row["arbg_user_id"] for row in result] == ["GBLN-AAAAA"]

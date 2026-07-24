@@ -237,7 +237,8 @@ declare
   v_deleted integer;
 begin
   delete from public.profiles
-  where updated_at < now() - interval '180 days';
+  where updated_at < now() - interval '180 days'
+     or obsoleted_at is not null;
   get diagnostics v_deleted = row_count;
   return v_deleted;
 end;
@@ -252,3 +253,31 @@ select cron.schedule(
   '0 6 * * *',
   $$select public.delete_stale_profiles();$$
 );
+
+-- Verified Steam-ID duplicate consolidation — added after repeated test
+-- builds (fresh folders, no config.json) each minted a new Goblin ID, then
+-- got linked to the same real Steam account, leaving multiple profiles rows
+-- sharing one steam_id. A naive "consolidate by steam_id" action would be a
+-- real security hole (worse than the arbg_user_id one reclaim_profile
+-- guards against): SteamID64s are usually publicly discoverable, so
+-- anything gated only on a client-claimed steam_id would let anyone obsolete
+-- any other active user's row. This column is only ever written by
+-- supabase/functions/consolidate-steam-profiles, which independently
+-- re-verifies a Steam OpenID assertion server-side (re-running the same
+-- check_authentication call the desktop app already does client-side)
+-- before touching anything -- see that function for the actual gating.
+alter table public.profiles add column obsoleted_at timestamptz;
+
+-- The two other privileged-write features (increment_steam_proxy_usage,
+-- reclaim_profile) both go through a `security definer` RPC, so they never
+-- needed the service_role calling identity itself to hold table grants --
+-- it runs as the function owner instead. This feature's Edge Function
+-- updates public.profiles directly via a service-role postgrest client, so
+-- it actually needs the grant: RLS bypass and table-level privileges are
+-- separate things in Postgres, and service_role had never been given
+-- either select or update on this table before now (only anon/authenticated
+-- were, above, for normal RLS-gated client access). Without this, every
+-- consolidate-steam-profiles call failed with
+-- "permission denied for table profiles" (42501), confirmed live via the
+-- Edge Function's own logs.
+grant select, update on public.profiles to service_role;

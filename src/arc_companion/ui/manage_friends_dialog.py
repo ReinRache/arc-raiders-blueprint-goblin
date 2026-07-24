@@ -1,5 +1,6 @@
 import threading
 from collections.abc import Callable
+from tkinter import messagebox
 
 import customtkinter as ctk
 from supabase import Client
@@ -9,6 +10,7 @@ from arc_companion.cloud.friends import fetch_profiles_by_steam_ids
 from arc_companion.cloud.steam_proxy import (
     SteamFriendsListPrivateError,
     SteamProxyRateLimitedError,
+    consolidate_steam_profiles,
     get_friend_list,
     get_player_summaries,
 )
@@ -47,6 +49,14 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.cloud_client = cloud_client
         self.cloud_session_store = cloud_session_store
         self._cancel_login: Callable[[], None] | None = None
+        # Consolidation can't reuse the routine login above -- Steam's
+        # check_authentication only accepts an assertion once, and the
+        # routine flow already spends it locally. Clicking "Clean Up
+        # Duplicate Profiles" triggers its own separate, never-locally-
+        # verified login instead (see openid_auth.login's verify_locally),
+        # so the server gets the only check_authentication call for it.
+        self._cancel_consolidate_login: Callable[[], None] | None = None
+        self._consolidate_in_flight = False
         self._discover_in_flight = False
         self._discover_candidates: list[dict] = []
         self._discover_checkbox_vars: dict[str, ctk.BooleanVar] = {}
@@ -209,6 +219,29 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         )
         self.steam_status_msg.grid(row=5, column=0, sticky="w", pady=(6, 0))
 
+        # Enabled once Steam is linked at all. Repeated test installs linking
+        # the same real Steam account each mint their own Goblin ID, leaving
+        # duplicate cloud rows; this cleans those up. Clicking it runs its
+        # own dedicated Steam login (never reuses the routine one above --
+        # see _cancel_consolidate_login) so the server independently
+        # re-verifies ownership itself (cloud/steam_proxy.py:
+        # consolidate_steam_profiles) rather than trusting a claimed
+        # steam_id, since SteamID64s are usually publicly discoverable.
+        self.consolidate_button = ctk.CTkButton(
+            frame,
+            text="Clean Up Duplicate Profiles",
+            fg_color=NEUTRAL_BUTTON_COLOR,
+            border_width=1,
+            border_color=NEUTRAL_BUTTON_BORDER_COLOR,
+            state="disabled",
+            command=self._on_consolidate_clicked,
+        )
+        self.consolidate_button.grid(row=6, column=0, sticky="w", pady=(8, 0))
+        self.consolidate_status_msg = ctk.CTkLabel(
+            frame, text="", text_color="gray", wraplength=480, justify="left", height=18
+        )
+        self.consolidate_status_msg.grid(row=7, column=0, sticky="w", pady=(6, 0))
+
         self._refresh_steam_status()
 
     def _refresh_steam_status(self) -> None:
@@ -220,6 +253,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
             self.steam_button.configure(text="Link Steam Account")
         self._update_steam_button_state()
         self._refresh_discover_button_state()
+        self._refresh_consolidate_button_state()
 
     def _update_steam_button_state(self) -> None:
         if self._cancel_login is not None:
@@ -240,7 +274,11 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.steam_button.configure(text="Cancel Login", state="normal")
         self.steam_status_msg.configure(text="Complete the login in your browser, then return here.")
 
-        def handle_result(steam_id: str | None) -> None:
+        def handle_result(steam_id: str | None, raw_params: dict[str, str] | None) -> None:
+            # raw_params is unused here -- routine linking only needs the
+            # already locally-verified steam_id. See
+            # _cancel_consolidate_login for why these params can't also be
+            # reused for server-side verification.
             self.after(0, lambda: self._on_login_complete(steam_id))
 
         self._cancel_login = openid_auth.login(handle_result)
@@ -255,6 +293,88 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.steam_status_msg.configure(text="")
         self._refresh_steam_status()
         self.on_steam_linked(steam_id)
+
+    # ---- Clean up duplicate Steam profiles ---------------------------------------
+
+    def _refresh_consolidate_button_state(self) -> None:
+        if (
+            not hasattr(self, "consolidate_button")
+            or self._consolidate_in_flight
+            or self._cancel_consolidate_login is not None
+        ):
+            return
+        self.consolidate_button.configure(state="normal" if self.steam_id else "disabled")
+
+    def _on_consolidate_clicked(self) -> None:
+        if self._cancel_consolidate_login is not None:
+            self._cancel_consolidate_login()
+            self._cancel_consolidate_login = None
+            self.consolidate_button.configure(text="Clean Up Duplicate Profiles")
+            self._refresh_consolidate_button_state()
+            self.consolidate_status_msg.configure(text="Login cancelled.", text_color="gray")
+            return
+        if self._consolidate_in_flight or not self.steam_id:
+            return
+        if not messagebox.askyesno(
+            "Clean Up Duplicate Profiles",
+            "This confirms your Steam login again (a separate login from linking, since "
+            "Steam only lets each login be verified once), then marks every other cloud "
+            "profile linked to that same Steam account as obsolete, keeping only this one. "
+            "It only affects duplicate cloud entries, not your local collection. Continue?",
+            parent=self,
+        ):
+            return
+
+        self.consolidate_button.configure(text="Cancel Login", state="normal")
+        self.consolidate_status_msg.configure(
+            text="Complete the login in your browser, then return here.", text_color="gray"
+        )
+
+        def handle_result(_steam_id: str | None, raw_params: dict[str, str] | None) -> None:
+            self.after(0, lambda: self._on_consolidate_login_complete(raw_params))
+
+        self._cancel_consolidate_login = openid_auth.login(handle_result, verify_locally=False)
+
+    def _on_consolidate_login_complete(self, raw_params: dict[str, str] | None) -> None:
+        self._cancel_consolidate_login = None
+        self.consolidate_button.configure(text="Clean Up Duplicate Profiles")
+        if raw_params is None:
+            self._refresh_consolidate_button_state()
+            self.consolidate_status_msg.configure(
+                text="Steam login didn't complete (cancelled, timed out, or failed).", text_color="gray"
+            )
+            return
+
+        self._consolidate_in_flight = True
+        self.consolidate_button.configure(state="disabled")
+        self.consolidate_status_msg.configure(text="Cleaning up...", text_color="gray")
+
+        def worker() -> None:
+            try:
+                ensure_session(self.cloud_client, self.cloud_session_store)
+                count = consolidate_steam_profiles(self.cloud_client, raw_params)
+            except Exception as exc:
+                error_code = describe_error(exc)
+                message = f"Clean up failed ({error_code}) — check your connection."
+                self.after(0, lambda: self._on_consolidate_finished(error=message))
+                return
+            self.after(0, lambda: self._on_consolidate_finished(count=count))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_consolidate_finished(self, count: int | None = None, error: str | None = None) -> None:
+        self._consolidate_in_flight = False
+        self._refresh_consolidate_button_state()
+
+        if error is not None:
+            self.consolidate_status_msg.configure(text=error, text_color=ERROR_COLOR)
+            return
+        if count:
+            self.consolidate_status_msg.configure(
+                text=f"Cleaned up {count} duplicate profile(s).", text_color=SUCCESS_COLOR_LIGHT
+            )
+        else:
+            self.consolidate_status_msg.configure(text="No duplicate profiles found.", text_color="gray")
 
     # ---- Discover Steam friends ---------------------------------------------------
 

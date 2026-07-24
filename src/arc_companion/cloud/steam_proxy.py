@@ -53,3 +53,22 @@ def get_friend_list(client: Client, steam_id: str) -> list[str]:
             raise SteamProxyRateLimitedError("Too many requests — try again later.") from exc
         raise
     return response.get("steam_ids", [])
+
+
+def consolidate_steam_profiles(client: Client, openid_params: dict[str, str]) -> int:
+    """Asks the backend to independently re-verify a just-completed Steam
+    OpenID login and, if genuine, mark every OTHER profiles row sharing that
+    SteamID64 as obsolete (never the caller's own row) -- see
+    supabase/functions/consolidate-steam-profiles. openid_params must be
+    fresh, straight from steam/openid_auth.py's login() callback -- there's
+    no way to consolidate from just a remembered steam_id string, by design:
+    the server needs its own independent proof each time, not a client's
+    word for it. Requires an authenticated Supabase session
+    (ensure_session(...) must already have been called on this client).
+
+    Returns how many rows were marked obsolete."""
+    response = client.functions.invoke(
+        "consolidate-steam-profiles",
+        {"body": {"openid_params": openid_params}, "responseType": "json"},
+    )
+    return int(response.get("obsoleted_count", 0))

@@ -85,12 +85,26 @@ class _CallbackHandler(http.server.BaseHTTPRequestHandler):
         pass  # silence default request logging to stderr
 
 
-def login(on_complete: Callable[[str | None], None]) -> Callable[[], None]:
+def login(
+    on_complete: Callable[[str | None, dict[str, str] | None], None],
+    verify_locally: bool = True,
+) -> Callable[[], None]:
     """Starts the local callback server + opens the browser on a background
-    thread, and calls on_complete(steam_id_or_None) from that thread once a
-    result is available (verified success, timeout, port unavailable, or
-    explicit cancel). Returns a cancel() function the caller can invoke to
-    abort early (e.g. a dialog's Cancel button).
+    thread, and calls on_complete(steam_id_or_None, raw_params_or_None) from
+    that thread once a result is available (success, timeout, port
+    unavailable, or explicit cancel). Returns a cancel() function the caller
+    can invoke to abort early (e.g. a dialog's Cancel button).
+
+    verify_locally=False skips the local check_authentication call and
+    hands back the raw, never-verified params instead of a steam_id.
+    Steam's check_authentication appears to be single-use per assertion --
+    consolidate_steam_profiles() originally reused a login that had already
+    been verified locally by this same function, and the server's own
+    independent re-check of that already-consumed assertion was rejected
+    every time (surfaced as openid_verification_failed). Any caller that
+    needs to prove a login to a server itself must get its own dedicated,
+    never-locally-verified login instead of reusing one that already went
+    through the branch below.
 
     Runs entirely off the Tk thread — never touches Tk objects. Callers that
     need to update UI from on_complete must hop back onto the Tk thread
@@ -99,7 +113,7 @@ def login(on_complete: Callable[[str | None], None]) -> Callable[[], None]:
         server = http.server.HTTPServer((CALLBACK_HOST, CALLBACK_PORT), _CallbackHandler)
     except OSError:
         # Most likely the port's already in use by something else.
-        on_complete(None)
+        on_complete(None, None)
         return lambda: None
 
     server.received_params = None
@@ -119,10 +133,13 @@ def login(on_complete: Callable[[str | None], None]) -> Callable[[], None]:
         server.server_close()
 
         if not server.received_event.is_set():
-            on_complete(None)
+            on_complete(None, None)
+            return
+        if not verify_locally:
+            on_complete(None, server.received_params)
             return
         steam_id = verify_openid_response(server.received_params)
-        on_complete(steam_id)
+        on_complete(steam_id, server.received_params if steam_id else None)
 
     threading.Thread(target=worker, daemon=True).start()
     return cancelled.set
