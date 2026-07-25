@@ -350,6 +350,23 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         # coordinates has no column-width negotiation to go stale, so
         # existing card widgets can just be repositioned in place — cheap,
         # and immune to this whole class of bug.
+        if self.columns < 1:
+            # self.columns is still __init__'s 0 sentinel until the first
+            # real <Configure> event on the canvas has fired (see __init__
+            # for why we don't render() eagerly there). divmod(index, 0)
+            # below would crash for anyone who types in the search bar in
+            # that brief startup window -- found by inspection while
+            # investigating a report of the search bar intermittently
+            # emptying the grid with no visible error (a windowed build
+            # swallows callback exceptions silently; see
+            # MainWindow.report_callback_exception, added at the same time
+            # so the *next* occurrence of whatever this doesn't fully
+            # explain leaves a real traceback). Safe to just wait:
+            # _on_resize_settled's render() call, once the real
+            # call, once the real Configure event lands, picks up whatever
+            # self._search_query is already set to here, so nothing typed
+            # during this window is lost.
+            return
         if self._search_query:
             visible = [bp for bp in self.blueprints if self._search_query in bp.name.lower()]
         else:

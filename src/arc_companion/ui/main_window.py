@@ -1,6 +1,8 @@
 import dataclasses
+import datetime
 import threading
 import time
+import traceback
 from tkinter import messagebox
 
 import customtkinter as ctk
@@ -13,6 +15,7 @@ from arc_companion.cloud.sync import RecoveryOutcome, ensure_session, push_profi
 from arc_companion.data.blueprints import load_blueprints
 from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
+from arc_companion.paths import user_data_root
 from arc_companion.storage.friends_cache import FriendProfileSnapshot, FriendsCacheStore
 from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
@@ -160,6 +163,27 @@ class MainWindow(ctk.CTk):
         self.action_bar = ActionBar(self, on_sync=self._on_sync_clicked, on_scan=self._on_scan_clicked)
         self.action_bar.grid(row=1, column=1, sticky="ew")
         self.action_bar.set_last_synced_at(self.user_state.last_synced_at)
+
+    def report_callback_exception(self, exc, val, tb) -> None:
+        # Tkinter's default here just prints to stderr, which doesn't exist
+        # in this app's windowed (console=False) build -- any exception
+        # raised inside a widget callback (variable traces like the search
+        # bar, button commands, .after callbacks) previously vanished with
+        # no visible trace at all, which is exactly what made a prior
+        # search-bar bug (grid emptying out with no way to tell why)
+        # unreproducible. Logged to a file next to the exe instead, and
+        # still printed too (visible when running from source). Overriding
+        # this one method on the Tk root covers every widget's callback
+        # exceptions app-wide, including dialogs -- Tkinter resolves it via
+        # widget._root(), not per-widget.
+        traceback.print_exception(exc, val, tb)
+        try:
+            log_path = user_data_root() / "crash_log.txt"
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write(f"\n--- {datetime.datetime.now().isoformat()} ---\n")
+                traceback.print_exception(exc, val, tb, file=f)
+        except OSError:
+            pass
 
     def _status_for_id(self, blueprint_id: int) -> BlueprintStatus:
         return status_for(blueprint_id, self.owned_ids, self.wanted_ids, self.spare_ids)
