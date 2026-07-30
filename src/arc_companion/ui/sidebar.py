@@ -1,13 +1,30 @@
 from collections.abc import Callable
+from functools import lru_cache
 
 import customtkinter as ctk
+from PIL import Image
 
+from arc_companion.data.blueprints import IMAGES_DIR
 from arc_companion.storage.friends_cache import FriendProfileSnapshot
 from arc_companion.ui.friends_section import FriendsSection
 
 # Public (no leading underscore): main_window.py uses this for its column's
 # minsize instead of a duplicated literal, so the two can never drift apart.
 SIDEBAR_WIDTH = 220
+
+_LOGO_PATH = IMAGES_DIR / "ARBG_Logo_Goblin.png"
+# Square source (512x512) with margin left for the sidebar's own 20px side
+# padding -- see Sidebar.__init__ for why the frame itself is locked to
+# exactly SIDEBAR_WIDTH regardless of what a child asks for.
+_LOGO_SIZE = 170
+
+
+@lru_cache(maxsize=1)
+def _load_logo_image() -> ctk.CTkImage | None:
+    if not _LOGO_PATH.exists():
+        return None
+    img = Image.open(_LOGO_PATH).convert("RGBA")
+    return ctk.CTkImage(light_image=img, dark_image=img, size=(_LOGO_SIZE, _LOGO_SIZE))
 
 
 class Sidebar(ctk.CTkFrame):
@@ -40,9 +57,14 @@ class Sidebar(ctk.CTkFrame):
         # change: friend comparison is ambient here, not a separate screen.
         self.grid_rowconfigure(3, weight=1)
 
+        # Falls back to the old text wordmark if the image is ever missing --
+        # e.g. a build that didn't bundle data/images correctly -- rather
+        # than showing a blank gap where the sidebar header should be.
+        logo_image = _load_logo_image()
         self.logo_label = ctk.CTkLabel(
             self,
-            text="Arc Raiders\nBlueprint Goblin",
+            image=logo_image,
+            text="" if logo_image is not None else "Arc Raiders\nBlueprint Goblin",
             font=ctk.CTkFont(size=20, weight="bold"),
         )
         self.logo_label.grid(row=0, column=0, padx=20, pady=(20, 30), sticky="w")
