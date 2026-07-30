@@ -209,6 +209,9 @@ class BlueprintCard(ctk.CTkFrame):
 # window itself so the default/minimum widths land on an exact number of
 # columns with no leftover slack — see MainWindow's _GRID_OVERHEAD_PX.
 CELL_SIZE = _CARD_WIDTH + _CARD_GAP
+# Same idea, vertically -- main_window.py's compact-display sizing uses
+# this to land on an exact number of visible rows.
+ROW_CELL_SIZE = _CARD_HEIGHT + _CARD_GAP
 
 
 def compute_columns(available_width: int) -> int:

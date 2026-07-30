@@ -20,7 +20,7 @@ from arc_companion.storage.friends_cache import FriendProfileSnapshot, FriendsCa
 from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.action_bar import ActionBar
-from arc_companion.ui.blueprint_grid import CELL_SIZE, BlueprintGrid
+from arc_companion.ui.blueprint_grid import CELL_SIZE, ROW_CELL_SIZE, BlueprintGrid
 from arc_companion.ui.manage_friends_dialog import ManageFriendsDialog
 from arc_companion.ui.scan_dialog import ScanDialog
 from arc_companion.ui.settings_dialog import SettingsDialog
@@ -39,6 +39,25 @@ _GRID_OVERHEAD_PX = SIDEBAR_WIDTH + _NON_SIDEBAR_OVERHEAD_PX
 _DEFAULT_COLUMNS = 10
 _MIN_COLUMNS = 4
 
+# A user on a 1920x1080 (or smaller) primary display gets a compact default
+# window instead of the normal 10-column/1080-tall one, which is exactly as
+# tall as a full 1920x1080 screen with nothing left over for the OS title
+# bar/taskbar -- confirmed to open partially off-screen there. 8 columns x 4
+# visible rows, sized with the same "no leftover slack" approach as the
+# normal default above.
+_COMPACT_COLUMNS = 8
+_COMPACT_ROWS = 4
+_COMPACT_SCREEN_MAX_WIDTH = 1920
+_COMPACT_SCREEN_MAX_HEIGHT = 1080
+# Window height minus the blueprint grid's own visible canvas height, at the
+# normal 10-column/1080-tall default -- measured directly via winfo_height(),
+# same "don't trust a formula, measure it" approach _NON_SIDEBAR_OVERHEAD_PX
+# above already uses. Everything it covers (header, search bar, their
+# padding, the action bar row, main_view's own margin) is independent of
+# row count, so it applies just as well at 4 rows as at whatever the normal
+# default happens to render.
+_VERTICAL_OVERHEAD_PX = 199
+
 
 class MainWindow(ctk.CTk):
     def __init__(self):
@@ -52,7 +71,20 @@ class MainWindow(ctk.CTk):
         # winfo_width() measurement, not just computed (Tk's DPI widget
         # scaling and internal border spacing aren't reliably predictable
         # from constants alone).
-        self.geometry(f"{_DEFAULT_COLUMNS * CELL_SIZE + _GRID_OVERHEAD_PX}x1080")
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        if screen_width <= _COMPACT_SCREEN_MAX_WIDTH and screen_height <= _COMPACT_SCREEN_MAX_HEIGHT:
+            window_width = _COMPACT_COLUMNS * CELL_SIZE + _GRID_OVERHEAD_PX
+            window_height = _COMPACT_ROWS * ROW_CELL_SIZE + _VERTICAL_OVERHEAD_PX
+            # Centered explicitly rather than left to the window manager's
+            # default placement, so "room to spare" actually holds on all
+            # sides instead of depending on wherever the WM happens to put
+            # an unpositioned window.
+            x = max(0, (screen_width - window_width) // 2)
+            y = max(0, (screen_height - window_height) // 2)
+            self.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        else:
+            self.geometry(f"{_DEFAULT_COLUMNS * CELL_SIZE + _GRID_OVERHEAD_PX}x1080")
         self.minsize(_MIN_COLUMNS * CELL_SIZE + _GRID_OVERHEAD_PX, 700)
 
         self.store = LocalJSONStore()
