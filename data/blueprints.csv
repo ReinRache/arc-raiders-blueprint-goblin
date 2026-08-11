@@ -3,22 +3,22 @@ id,name,image,rarity
 2,Angled Grip III,256px-Angled_Grip_III.png.webp,Rare
 3,Pulse Mine,256px-Pulse_Mine.png.webp,Uncommon
 4,Silencer II,256px-Silencer_II.png.webp,Rare
-5,Red Light Stick,256px-Red_Light_Stick.png.webp,Common
-6,Tactical Mk. 3 (Revival),256px-Tactical_Mk._3_(Revival).png.webp,Epic
+5,Red Light Stick,LightStick_Red.png,Common
+6,Tactical Mk. 3 (Revival),TacticalMk3_Revival.png,Epic
 7,Compensator II,256px-Compensator_II.png.webp,Uncommon
 8,Muzzle Brake III,256px-Muzzle_Brake_III.png.webp,Rare
-9,Tactical Mk. 3 (Defensive),256px-Tactical_Mk._3_(Defensive).png.webp,Epic
+9,Tactical Mk. 3 (Defensive),TacticalMk3_Defensive.png,Epic
 10,Vita Spray,256px-Vita_Spray.png.webp,Epic
 11,Medium Gun Parts,256px-Medium_Gun_Parts.png.webp,Rare
 12,Tagging Grenade,Tagging_Grenade.png,Rare
 13,Crash Mat,256px-Crash_Mat.png.webp,Uncommon
-14,Bobcat,256px-Bobcat-Level1.png.webp,Epic
+14,Bobcat,Bobcat.png,Epic
 15,Defibrillator,256px-Defibrillator.png.webp,Rare
-16,Jupiter,256px-Jupiter.png.webp,Legendary
+16,Jupiter,Jupiter.png,Legendary
 17,Extended Medium Mag II,256px-Extended_Medium_Mag_II.png.webp,Uncommon
-18,Tactical Mk. 3 (Smoke),256px-Tactical_Mk._3_(Smoke).png.webp,Epic
+18,Tactical Mk. 3 (Smoke),TacticalMk3_Smoke.png,Epic
 19,Smoke Grenade,256px-Smoke_Grenade.png.webp,Rare
-20,Dolabra,256px-Dolabra-Level1.png.webp,Legendary
+20,Dolabra,Dolabra.png,Legendary
 21,Shotgun Silencer,256px-Shotgun_Silencer.png.webp,Epic
 22,White Flag,256px-White_Flag.png.webp,Common
 23,Extended Light Mag II,256px-Extended_Light_Mag_II.png.webp,Uncommon
@@ -26,59 +26,59 @@ id,name,image,rarity
 25,Remote Raider Flare,256px-Remote_Raider_Flare.png.webp,Common
 26,Angled Grip II,256px-Angled_Grip_II.png.webp,Uncommon
 27,Stable Stock III,256px-Stable_Stock_III.png.webp,Rare
-28,Aphelion,256px-Aphelion.png.webp,Legendary
-29,Tempest,256px-Tempest-Level1.png.webp,Epic
-30,Tactical Mk. 3 (Healing),256px-Tactical_Mk._3_(Healing).png.webp,Epic
+28,Aphelion,Aphelion.png,Legendary
+29,Tempest,Tempest.png,Epic
+30,Tactical Mk. 3 (Healing),TacticalMk3_Healing.png,Epic
 31,Vertical Grip III,256px-Vertical_Grip_III.png.webp,Rare
 32,Wolfpack,256px-Wolfpack.png.webp,Epic
 33,Combat Mk. 3 (Flanking),256px-Combat_Mk._3_(Flanking).png.webp,Epic
-34,Torrente,256px-Torrente-Level1.png.webp,Rare
-35,Jolt Mine,256px-Jolt_Mine.png.webp,Rare
-36,Hullcracker,256px-Hullcracker-Level1.png.webp,Epic
+34,Torrente,Torrente.png,Rare
+35,Jolt Mine,Jolt_Mine.png,Rare
+36,Hullcracker,Hullcracker.png,Epic
 37,Vita Shot,256px-Vita_Shot.png.webp,Rare
 38,Deadline,256px-Deadline.png.webp,Epic
 39,Shotgun Choke II,256px-Shotgun_Choke_II.png.webp,Uncommon
-40,Anvil,256px-Anvil-Level1.png.webp,Uncommon
-41,Osprey,256px-Osprey-Level1.png.webp,Rare
+40,Anvil,Anvil.png,Uncommon
+41,Osprey,Osprey.png,Rare
 42,Looting Mk. 3 (Survivor),256px-Looting_Mk._3_(Survivor).png.webp,Epic
 43,Extended Shotgun Mag II,256px-Extended_Shotgun_Mag_II.png.webp,Uncommon
 44,Powered Descender,256px-Powered_Descender.png.webp,Epic
 45,Compensator III,256px-Compensator_III.png.webp,Rare
-46,Vulcano,256px-Vulcano-Level1.png.webp,Epic
+46,Vulcano,Vulcano.png,Epic
 47,Lightweight Stock,256px-Lightweight_Stock.png.webp,Epic
 48,Trailblazer,256px-Trailblazer.png.webp,Rare
 49,Barricade Kit,256px-Barricade_Kit.png.webp,Uncommon
-50,Green Light Stick,256px-Green_Light_Stick.png.webp,Common
+50,Green Light Stick,LightStick_Green.png,Common
 51,Extended Medium Mag III,256px-Extended_Medium_Mag_III.png.webp,Rare
 52,Lure Grenade,256px-Lure_Grenade.png.webp,Uncommon
 53,Combat Mk. 3 (Aggressive),256px-Combat_Mk._3_(Aggressive).png.webp,Epic
 54,Light Gun Parts,256px-Light_Gun_Parts.png.webp,Rare
 55,Extended Light Mag III,256px-Extended_Light_Mag_III.png.webp,Rare
-56,Il Toro,256px-Il_Toro-Level1.png.webp,Uncommon
+56,Il Toro,IlToro.png,Uncommon
 57,Padded Stock,256px-Padded_Stock.png.webp,Epic
 58,Heavy Gun Parts,256px-Heavy_Gun_Parts.png.webp,Rare
-59,Rascal,256px-Rascal.png.webp,Rare
-60,Canto,256px-Canto-Level1.png.webp,Rare
-61,Bettina,256px-Bettina.png.webp,Epic
+59,Rascal,Rascal.png,Rare
+60,Canto,Canto.png,Rare
+61,Bettina,Bettina.png,Epic
 62,Fireworks Box,256px-Fireworks_Box.png.webp,Rare
 63,Gas Mine,256px-Gas_Mine.png.webp,Common
-64,Yellow Light Stick,256px-Yellow_Light_Stick.png.webp,Common
+64,Yellow Light Stick,LightStick_Yellow.png,Common
 65,Looting Mk. 3 (Safekeeper),256px-Looting_Mk._3_(Safekeeper).png.webp,Epic
 66,Surge Coil,256px-Surge_Coil.png.webp,Rare
 67,Complex Gun Parts,256px-Complex_Gun_Parts.png.webp,Epic
 68,Explosive Mine,256px-Explosive_Mine.png.webp,Rare
-69,Venator,256px-Venator-Level1.png.webp,Rare
+69,Venator,Venator.png,Rare
 70,Stable Stock II,256px-Stable_Stock_II.png.webp,Uncommon
 71,Blaze Grenade,256px-Blaze_Grenade.png.webp,Rare
 72,Trigger 'Nade,256px-Trigger_'Nade.png.webp,Rare
 73,Seeker Grenade,256px-Seeker_Grenade.png.webp,Uncommon
 74,Silencer I,256px-Silencer_I.png.webp,Uncommon
 75,Shotgun Choke III,256px-Shotgun_Choke_III.png.webp,Rare
-76,Blue Light Stick,256px-Blue_Light_Stick.png.webp,Common
+76,Blue Light Stick,LightStick_Blue.png,Common
 77,Vertical Grip II,256px-Vertical_Grip_II.png.webp,Uncommon
-78,Extended Barrel II,256px-Extended_Barrel_II.png.webp,Rare
+78,Extended Barrel II,ExtendedBarrel_II.png,Rare
 79,Muzzle Brake II,256px-Muzzle_Brake_II.png.webp,Uncommon
-80,Extended Barrel III,256px-Extended_Barrel.png.webp,Epic
-81,Burletta,256px-Burletta-Level1.png.webp,Uncommon
-82,Equalizer,256px-Equalizer.png.webp,Legendary
+80,Extended Barrel III,ExtendedBarrel_III.png,Epic
+81,Burletta,Burletta.png,Uncommon
+82,Equalizer,Equalizer.png,Legendary
 83,Snap Hook,256px-Snap_Hook.png.webp,Legendary
