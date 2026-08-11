@@ -7,6 +7,7 @@ from PIL import Image
 from arc_companion.data.blueprints import IMAGES_DIR
 from arc_companion.storage.friends_cache import FriendProfileSnapshot
 from arc_companion.ui.friends_section import FriendsSection
+from arc_companion.ui.theme import NEUTRAL_BUTTON_BORDER_COLOR, NEUTRAL_BUTTON_COLOR
 
 # Public (no leading underscore): main_window.py uses this for its column's
 # minsize instead of a duplicated literal, so the two can never drift apart.
@@ -73,10 +74,19 @@ class Sidebar(ctk.CTkFrame):
         # exactly one view (the friend-aware grid) and the count moved into
         # the main headline (see MainWindow._header_text) instead of being
         # duplicated here.
+        # Used to be fg_color="transparent" (read as plain text against the
+        # sidebar background) -- that only stayed legible by coincidence of
+        # the old default theme's own text color; the new custom theme's
+        # darker default text made these nearly invisible. Styled like every
+        # other secondary/dismissive button in the app instead (Remove,
+        # Delete My Data, Clean Up Obsolete Collections) rather than
+        # inventing a one-off look just for these two.
         self.btn_manage_friends = ctk.CTkButton(
             self,
             text="Manage Friends",
-            fg_color="transparent",
+            fg_color=NEUTRAL_BUTTON_COLOR,
+            border_width=1,
+            border_color=NEUTRAL_BUTTON_BORDER_COLOR,
             anchor="w",
             command=self._handle_manage_friends_click,
         )
@@ -86,7 +96,9 @@ class Sidebar(ctk.CTkFrame):
         self.btn_settings = ctk.CTkButton(
             self,
             text="Settings",
-            fg_color="transparent",
+            fg_color=NEUTRAL_BUTTON_COLOR,
+            border_width=1,
+            border_color=NEUTRAL_BUTTON_BORDER_COLOR,
             anchor="w",
             command=self._handle_settings_click,
         )

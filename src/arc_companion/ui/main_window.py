@@ -15,7 +15,7 @@ from arc_companion.cloud.sync import RecoveryOutcome, ensure_session, push_profi
 from arc_companion.data.blueprints import load_blueprints
 from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
-from arc_companion.paths import user_data_root
+from arc_companion.paths import resource_root, user_data_root
 from arc_companion.storage.friends_cache import FriendProfileSnapshot, FriendsCacheStore
 from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
@@ -61,9 +61,29 @@ _VERTICAL_OVERHEAD_PX = 199
 
 class MainWindow(ctk.CTk):
     def __init__(self):
-        super().__init__()
+        # Both calls must happen *before* super().__init__() -- confirmed
+        # live, not assumed: CTk's own root window reads ThemeManager's
+        # currently-loaded theme/appearance mode at construction time to
+        # set its own fg_color, and customtkinter auto-loads the "blue"
+        # built-in the moment the package is imported (before this
+        # constructor ever runs). Calling set_default_color_theme() after
+        # super().__init__(), as this used to, is a silent no-op for the
+        # root window itself -- every *other* widget (constructed later,
+        # below) picks up a theme change fine, but the root's own
+        # background stays stuck on the original auto-loaded "blue",
+        # producing a mismatched background the moment this theme's colors
+        # actually diverge from blue's (they didn't before now, since this
+        # used to redundantly re-load "blue").
         ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
+        # Custom theme, not a built-in name -- ctk.set_default_color_theme
+        # treats anything that isn't one of its 4 built-in names ("blue",
+        # "green", "gold", "dark-blue") as a filesystem path to a theme
+        # JSON, loaded as-is (see customtkinter's ThemeManager.load_theme).
+        # data/theme/arc_raiders.json started as a copy of the built-in
+        # blue.json -- same schema (one section per CTk widget class, each
+        # color a [light, dark] pair) -- tune hex values there directly.
+        ctk.set_default_color_theme(str(resource_root() / "data" / "theme" / "arc_raiders.json"))
+        super().__init__()
 
         self.title("Arc Raiders Blueprint Goblin")
         # Sized so the grid fits exactly _DEFAULT_COLUMNS/_MIN_COLUMNS cards
@@ -437,6 +457,7 @@ class MainWindow(ctk.CTk):
             arbg_user_id=self.user_state.arbg_user_id,
             steam_id=self.user_state.steam_id,
             friend_ids=self.user_state.arbg_friend_user_ids,
+            friends_cache=self.friends_cache,
             on_friends_changed=self._on_friends_changed,
             on_steam_linked=self._on_steam_linked,
             cloud_client=self.cloud_client,

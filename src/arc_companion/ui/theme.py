@@ -18,7 +18,7 @@ from arc_companion.domain.status import BlueprintStatus
 # "Connected"/synced status text (ActionBar's storage label, a successful
 # sync) -- also HIGHLIGHT_COLORS' green below, one named constant both
 # reference rather than two copies of the same literal.
-SUCCESS_COLOR = "#4CAF50"
+SUCCESS_COLOR = "#30EF85"
 # Lighter green for one-off transient confirmations (a completed Steam link,
 # "Added N friend(s).", "Cloud data deleted.") -- a distinct shade from
 # SUCCESS_COLOR above, not a typo; kept separate on purpose since merging
@@ -36,8 +36,8 @@ WARNING_COLOR = "#FFB74D"
 # call sites pair this with NEUTRAL_BUTTON_BORDER_COLOR (border_width=1) and
 # some don't; that distinction is preserved per call site, only the color
 # values themselves are centralized here.
-NEUTRAL_BUTTON_COLOR = "#2B2B2B"
-NEUTRAL_BUTTON_BORDER_COLOR = "#555555"
+NEUTRAL_BUTTON_COLOR = "#615F5D"
+NEUTRAL_BUTTON_BORDER_COLOR = "#7A756F"
 
 # ActionBar's "dirty" (unsaved changes pending) Sync button -- matches the
 # app's own CTk default color theme ("blue", set in main_window.py), used
@@ -73,10 +73,10 @@ TOOLTIP_FG_COLOR = "#EEEEEE"
 # fg_color was lightened from an earlier #333333 per designer feedback -- it
 # blended into the card/icon background at that darkness.
 STATUS_COLORS: dict[BlueprintStatus, tuple[str, str, str]] = {
-    BlueprintStatus.UNOWNED: ("Unowned", "#5C5C5C", "#6E6E6E"),
-    BlueprintStatus.OWNED: ("Owned", "#4932CC", "#796ACE"),
-    BlueprintStatus.WANT: ("Want", "#1F8535", "#589666"),
-    BlueprintStatus.HAVE: ("Have", "#22A8C0", "#8BB8C0"),
+    BlueprintStatus.UNOWNED: ("Unowned", "#818181", "#A7A7A7"),
+    BlueprintStatus.OWNED: ("Owned", "#5951BB", "#7069C7"),
+    BlueprintStatus.WANT: ("Want", "#30EF85", "#8DEEB9"),
+    BlueprintStatus.HAVE: ("Have", "#81F2EB", "#B8F0EC"),
 }
 
 # (border_width, border_color) per highlight tier. Green = "a friend has one
@@ -88,6 +88,6 @@ HIGHLIGHT_COLORS: dict[Highlight, tuple[int, str]] = {
     Highlight.NONE: (1, "#4A4A4A"),
     Highlight.THIN_GREEN: (1, SUCCESS_COLOR),
     Highlight.THICK_GREEN: (3, SUCCESS_COLOR),
-    Highlight.THIN_CYAN: (1, "#26C6DA"),
-    Highlight.THICK_CYAN: (3, "#26C6DA"),
+    Highlight.THIN_CYAN: (1, "#81F2EB"),
+    Highlight.THICK_CYAN: (3, "#81F2EB"),
 }

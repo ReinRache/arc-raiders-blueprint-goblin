@@ -18,6 +18,7 @@ from arc_companion.cloud.sync import ensure_session
 from arc_companion.domain.friends import discoverable_steam_friends
 from arc_companion.identity import AddFriendError, add_friend
 from arc_companion.steam import openid_auth
+from arc_companion.storage.friends_cache import FriendProfileSnapshot
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.theme import ERROR_COLOR, NEUTRAL_BUTTON_BORDER_COLOR, NEUTRAL_BUTTON_COLOR, SUCCESS_COLOR_LIGHT
 
@@ -29,6 +30,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         arbg_user_id: str,
         steam_id: str | None,
         friend_ids: list[str],
+        friends_cache: dict[str, FriendProfileSnapshot],
         on_friends_changed: Callable[[list[str]], None],
         on_steam_linked: Callable[[str], None],
         cloud_client: Client,
@@ -44,6 +46,11 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         self.arbg_user_id = arbg_user_id
         self.steam_id = steam_id
         self.friend_ids = list(friend_ids)
+        # A snapshot at dialog-open time, same as steam_id/friend_ids above --
+        # won't pick up a Steam name resolved by a sync that happens while
+        # this dialog is still open. Used purely for display (which friend
+        # you're about to remove); nothing here is keyed on it.
+        self.friends_cache = friends_cache
         self.on_friends_changed = on_friends_changed
         self.on_steam_linked = on_steam_linked
         self.cloud_client = cloud_client
@@ -52,7 +59,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         # Consolidation can't reuse the routine login above -- Steam's
         # check_authentication only accepts an assertion once, and the
         # routine flow already spends it locally. Clicking "Clean Up
-        # Duplicate Profiles" triggers its own separate, never-locally-
+        # Obsolete Collections" triggers its own separate, never-locally-
         # verified login instead (see openid_auth.login's verify_locally),
         # so the server gets the only check_authentication call for it.
         self._cancel_consolidate_login: Callable[[], None] | None = None
@@ -146,7 +153,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         for i, friend_id in enumerate(self.friend_ids):
             row = ctk.CTkFrame(self.friends_list_frame, fg_color="transparent")
             row.grid(row=i, column=0, sticky="ew", pady=2)
-            ctk.CTkLabel(row, text=friend_id).grid(row=0, column=0, padx=(0, 8), sticky="w")
+            ctk.CTkLabel(row, text=self._friend_label(friend_id)).grid(row=0, column=0, padx=(0, 8), sticky="w")
             ctk.CTkButton(
                 row,
                 text="Remove",
@@ -156,6 +163,17 @@ class ManageFriendsDialog(ctk.CTkToplevel):
                 border_color=NEUTRAL_BUTTON_BORDER_COLOR,
                 command=lambda f=friend_id: self._on_remove_friend(f),
             ).grid(row=0, column=1)
+
+    def _friend_label(self, friend_id: str) -> str:
+        # Goblin ID stays the primary label (it's what Remove actually acts
+        # on, and what you'd type to re-add someone) with the Steam name
+        # appended when known, rather than swapping to it entirely the way
+        # the sidebar's compact friend list does -- there's room here, and
+        # showing both is what actually answers "who am I about to remove."
+        snapshot = self.friends_cache.get(friend_id)
+        if snapshot is not None and snapshot.steam_name:
+            return f"{friend_id} ({snapshot.steam_name})"
+        return friend_id
 
     def _on_add_friend(self) -> None:
         try:
@@ -229,7 +247,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         # steam_id, since SteamID64s are usually publicly discoverable.
         self.consolidate_button = ctk.CTkButton(
             frame,
-            text="Clean Up Duplicate Profiles",
+            text="Clean Up Obsolete Collections",
             fg_color=NEUTRAL_BUTTON_COLOR,
             border_width=1,
             border_color=NEUTRAL_BUTTON_BORDER_COLOR,
@@ -247,7 +265,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
     def _refresh_steam_status(self) -> None:
         if self.steam_id:
             self.steam_status_label.configure(text=f"Linked as {self.steam_id}", text_color=SUCCESS_COLOR_LIGHT)
-            self.steam_button.configure(text="Switch Account")
+            self.steam_button.configure(text="Switch Steam Account")
         else:
             self.steam_status_label.configure(text="Not linked", text_color="gray")
             self.steam_button.configure(text="Link Steam Account")
@@ -309,14 +327,14 @@ class ManageFriendsDialog(ctk.CTkToplevel):
         if self._cancel_consolidate_login is not None:
             self._cancel_consolidate_login()
             self._cancel_consolidate_login = None
-            self.consolidate_button.configure(text="Clean Up Duplicate Profiles")
+            self.consolidate_button.configure(text="Clean Up Obsolete Collections")
             self._refresh_consolidate_button_state()
             self.consolidate_status_msg.configure(text="Login cancelled.", text_color="gray")
             return
         if self._consolidate_in_flight or not self.steam_id:
             return
         if not messagebox.askyesno(
-            "Clean Up Duplicate Profiles",
+            "Clean Up Obsolete Collections",
             "This confirms your Steam login again (a separate login from linking, since "
             "Steam only lets each login be verified once), then marks every other cloud "
             "profile linked to that same Steam account as obsolete, keeping only this one. "
@@ -337,7 +355,7 @@ class ManageFriendsDialog(ctk.CTkToplevel):
 
     def _on_consolidate_login_complete(self, raw_params: dict[str, str] | None) -> None:
         self._cancel_consolidate_login = None
-        self.consolidate_button.configure(text="Clean Up Duplicate Profiles")
+        self.consolidate_button.configure(text="Clean Up Obsolete Collections")
         if raw_params is None:
             self._refresh_consolidate_button_state()
             self.consolidate_status_msg.configure(
@@ -371,10 +389,10 @@ class ManageFriendsDialog(ctk.CTkToplevel):
             return
         if count:
             self.consolidate_status_msg.configure(
-                text=f"Cleaned up {count} duplicate profile(s).", text_color=SUCCESS_COLOR_LIGHT
+                text=f"Cleaned up {count} obsolete collection(s).", text_color=SUCCESS_COLOR_LIGHT
             )
         else:
-            self.consolidate_status_msg.configure(text="No duplicate profiles found.", text_color="gray")
+            self.consolidate_status_msg.configure(text="No obsolete collections found.", text_color="gray")
 
     # ---- Discover Steam friends ---------------------------------------------------
 
