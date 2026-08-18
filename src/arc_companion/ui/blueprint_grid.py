@@ -266,6 +266,27 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         # 200px canvas before we have any idea how many columns really fit.
         self._parent_canvas.bind("<Configure>", self._on_canvas_configure, add="+")
 
+    def _set_scaling(self, new_widget_scaling, new_window_scaling) -> None:
+        # Fires when CTk's own DPI poll (ScalingTracker) detects this
+        # window moved to a different-DPI monitor -- e.g. dragged from a
+        # 100%-scaled display onto a 4K one running 150%. Every CTk widget
+        # rescales itself automatically from this callback (see
+        # CTkBaseClass._set_scaling replaying each widget's last place()
+        # call through _apply_argument_scaling), which is why the cards
+        # themselves reposition correctly with no code here at all. The
+        # scrollable content height set at the end of render() is the one
+        # thing that doesn't self-heal that way -- it's a raw
+        # tkinter.Frame.configure() call with no CTk wrapper watching it --
+        # so without an explicit re-render here it goes stale at whatever
+        # was last computed for the old scaling factor. This is also the
+        # only reliable trigger for that: _on_canvas_configure only
+        # re-renders when compute_columns()'s result actually changes,
+        # which a pure DPI change doesn't guarantee (dragging between two
+        # same-width, different-DPI monitors can leave the column count
+        # unchanged while still needing a rescaled content height).
+        super()._set_scaling(new_widget_scaling, new_window_scaling)
+        self.render()
+
     def _on_canvas_configure(self, event) -> None:
         # event.width is real on-screen pixels; CTk's own size constants
         # (_CARD_WIDTH etc.) are pre-scaling logical units it multiplies by a
@@ -420,4 +441,17 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         # the underlying tkinter.Frame beneath the CTk wrapper.
         total_rows = -(-len(visible) // self.columns) if visible else 0  # ceil div
         content_height = total_rows * cell_h + _CARD_GAP // 2 if total_rows else 1
-        tkinter.Frame.configure(self, height=content_height)
+        # _apply_widget_scaling, not the raw value -- cell_h/_CARD_GAP are
+        # logical (pre-DPI-scaling) units, same as the x/y passed to each
+        # card's own place() call above. Cards scale themselves correctly
+        # because CTkBaseClass.place() runs x/y through this same
+        # conversion internally; the raw tkinter.Frame.configure() bypass
+        # above doesn't go through any CTk wrapper at all, so it needs the
+        # same conversion done explicitly. Without this, the scrollable
+        # region is sized in logical pixels while the actual (scaled) cards
+        # render larger than that on any display where Windows scaling
+        # isn't exactly 100% -- e.g. a 4K monitor at its recommended
+        # scaling -- silently cutting off the last row(s) from ever being
+        # reachable by scrolling. Confirmed via CTkBaseClass.place()'s own
+        # _apply_argument_scaling call, not assumed.
+        tkinter.Frame.configure(self, height=self._apply_widget_scaling(content_height))
