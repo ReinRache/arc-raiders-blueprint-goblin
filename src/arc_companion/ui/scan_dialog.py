@@ -91,8 +91,9 @@ class ScanDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self.body,
-            text="Scroll the in-game Blueprints panel all the way to the top, "
-            "take a screenshot, then select it below.",
+            text="Scroll the in-game Blueprints panel all the way to the top, then take a "
+            "full-window screenshot of the Arc Raiders viewport (not a cropped or "
+            "partial capture) and save it as a PNG. Select it below.",
             wraplength=480,
             justify="left",
         ).grid(row=0, column=0, sticky="w", pady=(10, 20))
@@ -129,8 +130,8 @@ class ScanDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             self.body,
-            text="Now scroll all the way to the bottom, take a second screenshot, "
-            "and select it below.",
+            text="Now scroll all the way to the bottom and take a second full-window PNG "
+            "screenshot the same way, then select it below.",
             wraplength=480,
             justify="left",
         ).grid(row=0, column=0, sticky="w", pady=(10, 20))
