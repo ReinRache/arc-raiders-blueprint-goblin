@@ -21,6 +21,18 @@ _TOOLTIP_HEADERS: dict[BlueprintStatus, str] = {
     BlueprintStatus.HAVE: "Have a Spare",
 }
 
+# Which friend-name list a highlighted tile's icon-hover tooltip should show
+# -- mirrors compute_highlight()'s own logic (domain/friends.py) so the
+# tooltip always explains the *actual* reason a given tile is highlighted,
+# not just a plausible-looking one. NONE is deliberately absent -- an
+# unhighlighted tile has no recommended trade, so its icon gets no tooltip.
+_HIGHLIGHT_TRADE_STATUS: dict[Highlight, BlueprintStatus] = {
+    Highlight.THIN_GREEN: BlueprintStatus.HAVE,
+    Highlight.THICK_GREEN: BlueprintStatus.HAVE,
+    Highlight.THIN_CYAN: BlueprintStatus.UNOWNED,
+    Highlight.THICK_CYAN: BlueprintStatus.WANT,
+}
+
 _ICON_SIZE = (86, 86)
 # The in-game Blueprints panel renders every icon on a distinct colored
 # "plate" behind it -- this reproduces that look by tinting the one real
@@ -117,18 +129,40 @@ class BlueprintCard(ctk.CTkFrame):
         self.blueprint = blueprint
         self._status = status
         self._friend_counts = friend_counts
+        self._highlight = highlight
+
+        # Mirrors the status button: clicking the icon (or its placeholder,
+        # when a blueprint has no icon on disk) cycles ownership status the
+        # same way clicking the button does -- a bigger, more discoverable
+        # click target than the small button alone. cursor="hand2" hints
+        # it's clickable the way CTkButton already does natively.
+        def _on_icon_click(event: object) -> None:
+            on_cycle(self.blueprint.id)
 
         self.icon_label: ctk.CTkLabel | None = None
         if icon is not None:
             self._icon = icon  # keep a reference alive; Tk drops images with no referrer
-            self.icon_label = ctk.CTkLabel(self, image=icon, text="")
+            self.icon_label = ctk.CTkLabel(self, image=icon, text="", cursor="hand2")
             self.icon_label.grid(row=0, column=0, padx=5, pady=(4, 2))
+            self.icon_label.bind("<Button-1>", _on_icon_click)
+            # Only shows while this tile has a highlight border (a
+            # recommended trade) -- _icon_tooltip_text returns "" otherwise,
+            # and Tooltip already suppresses an empty popup, same as the
+            # friend-count dots below.
+            Tooltip(self.icon_label, self._icon_tooltip_text)
         else:
             placeholder = ctk.CTkFrame(
-                self, width=_ICON_SIZE[0], height=_ICON_SIZE[1], fg_color=PLACEHOLDER_ICON_COLOR, corner_radius=4
+                self,
+                width=_ICON_SIZE[0],
+                height=_ICON_SIZE[1],
+                fg_color=PLACEHOLDER_ICON_COLOR,
+                corner_radius=4,
+                cursor="hand2",
             )
             placeholder.grid_propagate(False)
             placeholder.grid(row=0, column=0, padx=5, pady=(4, 2))
+            placeholder.bind("<Button-1>", _on_icon_click)
+            Tooltip(placeholder, self._icon_tooltip_text)
 
         name_font = ctk.CTkFont(size=11, weight="bold")
         self.name_label = ctk.CTkLabel(
@@ -185,6 +219,18 @@ class BlueprintCard(ctk.CTkFrame):
             return ""  # Tooltip itself suppresses an empty popup -- no names, no header either.
         return "\n".join([_TOOLTIP_HEADERS[status], *names])
 
+    def _icon_tooltip_text(self) -> str:
+        # Which friend-name list actually explains *this* tile's highlight
+        # border, not just "whichever list happens to be non-empty" --
+        # compute_highlight() picks THICK_CYAN over THIN_CYAN when a friend
+        # both wants it AND others don't own it, so THIN_CYAN showing here
+        # implies counts.want is empty and counts.unowned is the right (and
+        # only) list to show, not an arbitrary choice.
+        status = _HIGHLIGHT_TRADE_STATUS.get(self._highlight)
+        if status is None:
+            return ""
+        return self._tooltip_text_for(status)
+
     def set_status(self, status: BlueprintStatus, icon: ctk.CTkImage | None) -> None:
         self._status = status
         text, color, hover = STATUS_COLORS[status]
@@ -198,6 +244,7 @@ class BlueprintCard(ctk.CTkFrame):
 
     def set_friend_overlay(self, friend_counts: FriendStatusCounts, highlight: Highlight) -> None:
         self._friend_counts = friend_counts
+        self._highlight = highlight
         for dot_status, label in self._dot_labels.items():
             count = len(friend_counts.for_status(dot_status))
             label.configure(text=f"●{count}")
