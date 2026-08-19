@@ -74,6 +74,42 @@ class MainWindow(ctk.CTk):
         # producing a mismatched background the moment this theme's colors
         # actually diverge from blue's (they didn't before now, since this
         # used to redundantly re-load "blue").
+        # Also has to happen before super().__init__() -- activate_high_dpi_
+        # awareness() (SetProcessDpiAwareness) fires from inside CTk's own
+        # window construction, gated on this same flag at that moment.
+        #
+        # A multi-monitor, mixed-DPI tester hit serious instability
+        # dragging the window across a monitor boundary -- traced (not
+        # guessed) to CTk's live per-monitor DPI rescaling: it polls every
+        # 100ms for which monitor the window currently overlaps most and,
+        # on a detected change, synchronously rescales every widget in the
+        # tree -- measured directly at 600ms-2000ms for this app's ~150+
+        # widgets, which is bad enough on its own, but customtkinter also
+        # has a confirmed upstream bug where the guard meant to prevent
+        # overlapping rescale cascades
+        # (Tk.block_update_dimensions_event/unblock_update_dimensions_
+        # event) is a no-op -- both set the same flag to False. While a
+        # window straddles a monitor boundary, Windows' "which monitor is
+        # this on" answer can flip repeatedly as the overlap ratio crosses
+        # 50%, so a slow drag can trigger this expensive, imperfectly-
+        # guarded cascade several times in a row.
+        #
+        # Disabling automatic DPI awareness here removes the whole class of
+        # bug rather than trying to further tame it: the window still
+        # renders at the correct scale for whichever monitor it's *launched*
+        # on (SetProcessDpiAwareness just never gets called, so Windows'
+        # own compatibility bitmap-stretching handles sizing instead of CTk
+        # querying real per-monitor DPI), it just won't live-rescale if
+        # later dragged to a monitor with different scaling -- a one-time
+        # visual rough edge (blurrier text, possibly the wrong on-screen
+        # size until restarted) traded for never freezing or destabilizing
+        # mid-drag again. BlueprintGrid's own _apply_widget_scaling fix and
+        # debounced _set_scaling (blueprint_grid.py) are left in place
+        # regardless -- both are correct and harmless at the fixed 1.0
+        # scaling factor this now always runs at, and stay ready if
+        # anything ever calls ScalingTracker.set_widget_scaling/
+        # set_window_scaling directly for an unrelated reason.
+        ctk.deactivate_automatic_dpi_awareness()
         ctk.set_appearance_mode("dark")
         # Custom theme, not a built-in name -- ctk.set_default_color_theme
         # treats anything that isn't one of its 4 built-in names ("blue",

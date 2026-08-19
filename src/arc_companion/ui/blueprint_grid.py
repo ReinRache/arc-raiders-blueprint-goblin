@@ -284,8 +284,29 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         # which a pure DPI change doesn't guarantee (dragging between two
         # same-width, different-DPI monitors can leave the column count
         # unchanged while still needing a rescaled content height).
+        #
+        # Debounced through the same _resize_after_id timer
+        # _on_canvas_configure uses, not called directly -- customtkinter's
+        # own DPI poll is supposed to suppress reentrant dimension-change
+        # handling while it rescales every widget in the tree
+        # (Tk.block_update_dimensions_event / unblock_update_dimensions_
+        # event), but that method has a real, confirmed upstream bug: both
+        # set the same flag to False, so "block" never actually blocks
+        # anything (github.com/TomSchimansky/CustomTkinter/blob/master/
+        # customtkinter/windows/ctk_tk.py, still present as of this
+        # writing). While a window straddles a monitor boundary, Windows'
+        # "which monitor is this on" answer can flip repeatedly as the
+        # overlap ratio crosses 50%, and each flip re-triggers a full
+        # rescale -- calling render() (an 83-card re-layout) directly from
+        # here on every one of those, unthrottled, is exactly the kind of
+        # extra work that turns "CTk's own DPI handling is imperfect" into
+        # a real, user-visible performance/stability problem. Debouncing
+        # collapses a burst of these into a single render() once the
+        # window actually settles on one monitor.
         super()._set_scaling(new_widget_scaling, new_window_scaling)
-        self.render()
+        if self._resize_after_id is not None:
+            self.after_cancel(self._resize_after_id)
+        self._resize_after_id = self.after(_RESIZE_DEBOUNCE_MS, self._on_resize_settled)
 
     def _on_canvas_configure(self, event) -> None:
         # event.width is real on-screen pixels; CTk's own size constants
