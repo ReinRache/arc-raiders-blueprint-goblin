@@ -11,6 +11,7 @@ class FakeSelectQuery:
         self._is_filters: dict[str, object] = {}
 
     def select(self, columns: str) -> "FakeSelectQuery":
+        self.selected_columns = columns
         return self
 
     def in_(self, column: str, values: list[str]) -> "FakeSelectQuery":
@@ -99,3 +100,13 @@ def test_fetch_profiles_by_steam_ids_excludes_obsoleted_rows():
     client = FakeClient(_STEAM_LINKED_ROWS)
     result = fetch_profiles_by_steam_ids(client, ["111"])
     assert [row["arbg_user_id"] for row in result] == ["GBLN-AAAAA"]
+
+
+def test_profile_selects_never_use_star_or_the_secret_hash_column():
+    # recovery_secret_hash is not SELECT-granted to clients, and PostgREST
+    # rejects "*" when any column is ungranted.
+    from arc_companion.cloud.friends import PROFILE_COLUMNS
+
+    assert "*" not in PROFILE_COLUMNS
+    assert "recovery_secret_hash" not in PROFILE_COLUMNS.split(",")
+    assert {"id", "arbg_user_id", "steam_id", "obsoleted_at"} <= set(PROFILE_COLUMNS.split(","))

@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+from postgrest import ReturnMethod
 from postgrest.exceptions import APIError
 
 from arc_companion.cloud.sync import (
@@ -58,13 +59,15 @@ class FakeTableQuery:
         self._client = client
         self._is_upsert = False
 
-    def upsert(self, payload):
+    def upsert(self, payload, returning=None):
         self.recorder.append(("upsert", self.table, payload))
+        self._client.returning_methods.append(returning)
         self._is_upsert = True
         return self
 
-    def update(self, payload):
+    def update(self, payload, returning=None):
         self.recorder.append(("update", self.table, payload))
+        self._client.returning_methods.append(returning)
         return self
 
     def eq(self, column, value):
@@ -96,6 +99,7 @@ class FakeClient:
         self.auth = auth
         self.calls: list = []
         self.rpc_calls: list = []
+        self.returning_methods: list = []
         self.upsert_side_effects: list = list(upsert_side_effects) if upsert_side_effects else []
         self._rpc_responses = rpc_responses or {}
 
@@ -349,3 +353,12 @@ def test_push_profile_with_recovery_reraises_non_conflict_errors_unchanged():
     with pytest.raises(ConnectionError):
         push_profile_with_recovery(client, "user-1", user_state)
     assert client.rpc_calls == []
+
+
+def test_profile_writes_use_returning_minimal():
+    # The default (representation) is RETURNING *, which includes
+    # recovery_secret_hash -- a column clients have no SELECT privilege on.
+    client = FakeClient(FakeAuth())
+    push_profile(client, "user-1", UserState(arbg_user_id="GBLN-23456"))
+    wipe_cloud_data(client, "user-1")
+    assert client.returning_methods == [ReturnMethod.minimal, ReturnMethod.minimal]

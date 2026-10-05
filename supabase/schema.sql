@@ -281,3 +281,124 @@ alter table public.profiles add column obsoleted_at timestamptz;
 -- "permission denied for table profiles" (42501), confirmed live via the
 -- Edge Function's own logs.
 grant select, update on public.profiles to service_role;
+
+-- =============================================================================
+-- Public-launch hardening -- apply by hand in the SQL Editor, in one go.
+-- (Run the "BEFORE" checks first; "AFTER" checks at the bottom confirm it.)
+--
+-- Why: before a public GitHub release, strangers can reach this project with
+-- nothing but the publishable key in the source (that key is public by
+-- design -- RLS and grants below are the actual protection). Four gaps:
+--   1. profiles.recovery_secret_hash was readable by everyone (public select).
+--      Not crackable in practice (bcrypt of a 160-bit random secret), but
+--      there's no reason to publish it.
+--   2. The Steam proxy's per-user daily cap is keyed by anonymous user, and
+--      anyone can mint unlimited anonymous users -- so the cap alone doesn't
+--      protect the one shared Steam key (Valve: 100k calls/day per key).
+--   3. Any signed-in user could write unbounded arrays / arbitrary text into
+--      their own row.
+--   4. The RPC grants above only `revoke ... from public`. Supabase can also
+--      grant EXECUTE directly to anon/authenticated (default privileges), which
+--      "from public" does NOT remove -- so the "service_role only" functions
+--      may have been callable by anyone. Revoked explicitly below.
+--
+-- BEFORE (optional, read-only) -- what's currently exposed:
+--   select has_column_privilege('anon', 'public.profiles', 'recovery_secret_hash', 'select');
+--   select has_function_privilege('anon', 'public.increment_steam_proxy_usage(uuid)', 'execute');
+--   -- and rows that would violate the new constraints (these must be fixed or
+--   -- deleted for VALIDATE to succeed later; NOT VALID below doesn't need it):
+--   select arbg_user_id, steam_id from public.profiles
+--   where arbg_user_id !~ '^GBLN-[2-9A-HJKMNP-Z]{5}$'
+--      or (steam_id is not null and steam_id !~ '^[0-9]{17}$')
+--      or cardinality(blueprints_owned) > 500
+--      or cardinality(blueprints_wanted) > 500
+--      or cardinality(blueprints_spare) > 500;
+-- =============================================================================
+
+-- 1. Column-level privileges on profiles. Postgres quirk (confirmed in
+-- Supabase's column-level-security docs): a column grant does nothing while a
+-- table-level grant exists, so revoke the table-level ones first. After this
+-- clients must name columns -- `select *` errors (cloud/friends.py:
+-- PROFILE_COLUMNS) -- and writes must use return=minimal (cloud/sync.py).
+-- service_role keeps its own table-level select/update (consolidate function).
+revoke select, insert, update on public.profiles from anon, authenticated;
+
+grant select (id, arbg_user_id, steam_id, blueprints_owned, blueprints_wanted,
+              blueprints_spare, updated_at, obsoleted_at)
+  on public.profiles to anon, authenticated;
+
+-- anon never writes (every write policy requires auth.uid()); authenticated
+-- users may write only the columns the app actually sends. Excluded on
+-- purpose: recovery_secret_hash (only set_recovery_secret may write it) and
+-- obsoleted_at (only consolidate-steam-profiles, via service_role).
+-- updated_at is set by the profiles_set_updated_at trigger, not the client.
+-- id must be writable: PostgREST's upsert puts every payload column,
+-- including id, in the ON CONFLICT DO UPDATE SET list (RLS's
+-- `with check (auth.uid() = id)` still stops anyone changing it to another).
+grant insert (id, arbg_user_id, steam_id, blueprints_owned, blueprints_wanted, blueprints_spare)
+  on public.profiles to authenticated;
+grant update (id, arbg_user_id, steam_id, blueprints_owned, blueprints_wanted, blueprints_spare)
+  on public.profiles to authenticated;
+
+-- 2. Global (all-users) daily cap on the Steam proxy -- enforced alongside the
+-- per-user one in supabase/functions/_shared/steam_proxy_common.ts.
+create table public.steam_proxy_global_usage (
+  day date primary key default current_date,
+  call_count integer not null default 0
+);
+alter table public.steam_proxy_global_usage enable row level security;
+
+create or replace function public.increment_steam_proxy_global_usage()
+returns integer
+language sql
+security definer
+set search_path = public
+as $$
+  insert into public.steam_proxy_global_usage (day, call_count)
+  values (current_date, 1)
+  on conflict (day)
+  do update set call_count = steam_proxy_global_usage.call_count + 1
+  returning call_count;
+$$;
+
+-- 3. Bound what a user can store in their own row. NOT VALID: enforced for
+-- every new/changed row immediately, without failing on any legacy test rows;
+-- run `alter table public.profiles validate constraint <name>;` later once
+-- the BEFORE query above returns nothing. 500 is generous headroom over the
+-- current 83 blueprints.
+alter table public.profiles
+  add constraint profiles_arbg_user_id_format
+    check (arbg_user_id ~ '^GBLN-[2-9A-HJKMNP-Z]{5}$') not valid,
+  add constraint profiles_steam_id_format
+    check (steam_id is null or steam_id ~ '^[0-9]{17}$') not valid,
+  add constraint profiles_blueprint_arrays_bounded
+    check (cardinality(blueprints_owned) <= 500
+       and cardinality(blueprints_wanted) <= 500
+       and cardinality(blueprints_spare) <= 500) not valid;
+
+-- 4. Explicit revokes (see header, gap 4). service_role-only functions:
+revoke all on function public.increment_steam_proxy_usage(uuid) from public, anon, authenticated;
+revoke all on function public.increment_steam_proxy_global_usage() from public, anon, authenticated;
+revoke all on function public.delete_stale_profiles() from public, anon, authenticated;
+grant execute on function public.increment_steam_proxy_usage(uuid) to service_role;
+grant execute on function public.increment_steam_proxy_global_usage() to service_role;
+-- authenticated-only functions (both no-op without auth.uid(), so anon access
+-- was dead weight, not a leak -- revoked anyway for tidiness):
+revoke all on function public.set_recovery_secret(text, text) from public, anon;
+revoke all on function public.reclaim_profile(text, text) from public, anon;
+
+-- AFTER (read-only) -- every line should return false:
+--   select has_column_privilege('anon', 'public.profiles', 'recovery_secret_hash', 'select');
+--   select has_column_privilege('authenticated', 'public.profiles', 'recovery_secret_hash', 'select');
+--   select has_column_privilege('authenticated', 'public.profiles', 'recovery_secret_hash', 'update');
+--   select has_column_privilege('authenticated', 'public.profiles', 'obsoleted_at', 'update');
+--   select has_function_privilege('anon', 'public.increment_steam_proxy_usage(uuid)', 'execute');
+--   select has_function_privilege('authenticated', 'public.increment_steam_proxy_global_usage()', 'execute');
+-- and these true:
+--   select has_column_privilege('anon', 'public.profiles', 'steam_id', 'select');
+--   select has_column_privilege('authenticated', 'public.profiles', 'blueprints_owned', 'update');
+--
+-- ROLLBACK (restores the pre-hardening grants exactly):
+--   grant select, insert, update on public.profiles to anon, authenticated;
+--   alter table public.profiles drop constraint profiles_arbg_user_id_format,
+--     drop constraint profiles_steam_id_format, drop constraint profiles_blueprint_arrays_bounded;

@@ -10,6 +10,7 @@ import {
   jsonOk,
   resolveCallerId,
   STEAM_API_BASE,
+  STEAM_ID_PATTERN,
 } from "../_shared/steam_proxy_common.ts";
 
 const MAX_STEAMIDS_PER_CALL = 100;
@@ -37,7 +38,7 @@ Deno.serve(async (req) => {
   }
 
   const steamIds = Array.isArray(body.steam_ids)
-    ? body.steam_ids.filter((id): id is string => typeof id === "string")
+    ? body.steam_ids.filter((id): id is string => typeof id === "string" && STEAM_ID_PATTERN.test(id))
     : [];
   if (steamIds.length === 0) {
     return jsonOk({});

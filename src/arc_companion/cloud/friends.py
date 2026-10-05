@@ -1,5 +1,14 @@
 from supabase import Client
 
+# Explicit, never "*": clients have no SELECT privilege on
+# profiles.recovery_secret_hash (supabase/schema.sql, "Public-launch
+# hardening"), and PostgREST rejects "*" outright when any column is
+# ungranted. Everything here is data a friend lookup legitimately needs.
+PROFILE_COLUMNS = (
+    "id,arbg_user_id,steam_id,blueprints_owned,blueprints_wanted,"
+    "blueprints_spare,updated_at,obsoleted_at"
+)
+
 
 def fetch_friend_profiles(client: Client, arbg_user_ids: list[str]) -> list[dict]:
     """One batched query for every friend's profiles row. RLS grants select
@@ -15,7 +24,7 @@ def fetch_friend_profiles(client: Client, arbg_user_ids: list[str]) -> list[dict
         return []
     result = (
         client.table("profiles")
-        .select("*")
+        .select(PROFILE_COLUMNS)
         .in_("arbg_user_id", arbg_user_ids)
         .is_("obsoleted_at", None)
         .execute()
@@ -34,7 +43,7 @@ def fetch_profiles_by_steam_ids(client: Client, steam_ids: list[str]) -> list[di
         return []
     result = (
         client.table("profiles")
-        .select("*")
+        .select(PROFILE_COLUMNS)
         .in_("steam_id", steam_ids)
         .is_("obsoleted_at", None)
         .execute()

@@ -11,6 +11,7 @@ import {
   jsonOk,
   resolveCallerId,
   STEAM_API_BASE,
+  STEAM_ID_PATTERN,
 } from "../_shared/steam_proxy_common.ts";
 
 Deno.serve(async (req) => {
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
     return jsonError("invalid_body", 400);
   }
 
-  if (typeof body.steam_id !== "string" || body.steam_id.length === 0) {
+  if (typeof body.steam_id !== "string" || !STEAM_ID_PATTERN.test(body.steam_id)) {
     return jsonError("invalid_body", 400);
   }
 

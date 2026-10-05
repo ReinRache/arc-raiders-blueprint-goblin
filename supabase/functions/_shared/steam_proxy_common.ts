@@ -16,6 +16,18 @@ export const STEAM_API_BASE = "https://api.steampowered.com";
 // to meter normal use.
 const DAILY_CALL_CAP = 200;
 
+// Ceiling across *all* users combined. The per-user cap above is keyed by
+// anonymous-auth user, and anyone can mint unlimited anonymous users, so it
+// alone can't protect the one shared key -- Valve's terms allow 100,000
+// calls/day per key; this leaves 5x headroom for other uses/bursts. Hitting
+// it just makes the friend/name features return rate_limited until the next
+// UTC day, which is the intended failure (vs. getting the key flagged).
+const GLOBAL_DAILY_CALL_CAP = 20000;
+
+// Real SteamID64s are exactly 17 digits. Anything else is never a valid
+// lookup, so reject it before it costs an upstream Steam call.
+export const STEAM_ID_PATTERN = /^[0-9]{17}$/;
+
 export function jsonError(error: string, status: number): Response {
   return new Response(JSON.stringify({ error }), {
     status,
@@ -72,7 +84,19 @@ export async function checkAndIncrementUsage(userId: string): Promise<boolean> {
     // than silently skip rate limiting because the counter call broke.
     return false;
   }
-  return (data as number) <= DAILY_CALL_CAP;
+  if ((data as number) > DAILY_CALL_CAP) {
+    return false;
+  }
+
+  // Checked after the per-user cap so a user already over their own limit
+  // can't also burn the shared budget. Same fail-closed rule as above.
+  const { data: globalCount, error: globalError } = await client.rpc(
+    "increment_steam_proxy_global_usage",
+  );
+  if (globalError) {
+    return false;
+  }
+  return (globalCount as number) <= GLOBAL_DAILY_CALL_CAP;
 }
 
 export function getSteamApiKey(): string {

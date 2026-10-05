@@ -1,5 +1,6 @@
 import dataclasses
 
+from postgrest import ReturnMethod
 from postgrest.exceptions import APIError
 from supabase import Client
 
@@ -56,7 +57,12 @@ def push_profile(client: Client, user_id: str, user_state: UserState) -> None:
             "blueprints_owned": user_state.blueprints_owned,
             "blueprints_wanted": user_state.blueprints_wanted,
             "blueprints_spare": user_state.blueprints_spare,
-        }
+        },
+        # minimal: nothing to read back, and the default ("representation")
+        # asks for RETURNING *, which includes recovery_secret_hash -- a
+        # column clients have no SELECT privilege on (supabase/schema.sql,
+        # "Public-launch hardening"), so the write would be rejected.
+        returning=ReturnMethod.minimal,
     ).execute()
 
 
@@ -151,5 +157,6 @@ def push_profile_with_recovery(client: Client, user_id: str, user_state: UserSta
 
 def wipe_cloud_data(client: Client, user_id: str) -> None:
     client.table("profiles").update(
-        {"blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": []}
+        {"blueprints_owned": [], "blueprints_wanted": [], "blueprints_spare": []},
+        returning=ReturnMethod.minimal,  # see push_profile
     ).eq("id", user_id).execute()
