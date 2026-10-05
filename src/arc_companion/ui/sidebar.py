@@ -115,6 +115,14 @@ class Sidebar(ctk.CTkFrame):
         )
         self.friends_section.grid(row=3, column=0, sticky="nsew")
 
+        # Hidden until a startup update check finds a newer release (see
+        # show_update_available) -- most launches never show it.
+        self.btn_update = ctk.CTkButton(self, text="", command=lambda: None)
+
+    def show_update_available(self, version: str, on_click: Callable[[], None]) -> None:
+        self.btn_update.configure(text=f"Update available: v{version}", command=on_click)
+        self.btn_update.grid(row=4, column=0, padx=20, pady=(5, 15), sticky="ew")
+
     def _handle_manage_friends_click(self) -> None:
         if self._on_manage_friends is not None:
             self._on_manage_friends()

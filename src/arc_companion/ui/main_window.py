@@ -3,6 +3,7 @@ import datetime
 import threading
 import time
 import traceback
+import webbrowser
 from tkinter import messagebox
 
 import customtkinter as ctk
@@ -26,6 +27,7 @@ from arc_companion.ui.scan_dialog import ScanDialog
 from arc_companion.ui.settings_dialog import SettingsDialog
 from arc_companion.ui.sidebar import SIDEBAR_WIDTH, Sidebar
 from arc_companion.ui.theme import ERROR_COLOR, SUCCESS_COLOR
+from arc_companion.version import UpdateInfo, __version__, check_for_update
 
 # Non-sidebar portion of the gap between the window's width and the
 # blueprint grid's actual usable (canvas) width: main_view horizontal
@@ -121,7 +123,7 @@ class MainWindow(ctk.CTk):
         ctk.set_default_color_theme(str(resource_root() / "data" / "theme" / "arc_raiders.json"))
         super().__init__()
 
-        self.title("Arc Raiders Blueprint Goblin")
+        self.title(f"Arc Raiders Blueprint Goblin v{__version__}")
         # Sized so the grid fits exactly _DEFAULT_COLUMNS/_MIN_COLUMNS cards
         # with no leftover slack on the right — confirmed via direct
         # winfo_width() measurement, not just computed (Tk's DPI widget
@@ -251,6 +253,9 @@ class MainWindow(ctk.CTk):
         self.action_bar = ActionBar(self, on_sync=self._on_sync_clicked, on_scan=self._on_scan_clicked)
         self.action_bar.grid(row=1, column=1, sticky="ew")
         self.action_bar.set_last_synced_at(self.user_state.last_synced_at)
+
+        self.available_update: UpdateInfo | None = None
+        self._start_update_check()
 
     def report_callback_exception(self, exc, val, tb) -> None:
         # Tkinter's default here just prints to stderr, which doesn't exist
@@ -500,8 +505,28 @@ class MainWindow(ctk.CTk):
             cloud_session_store=self.cloud_session_store,
         )
 
+    def _start_update_check(self) -> None:
+        # Off the Tk thread, and check_for_update() swallows every failure
+        # (offline, rate-limited, no repo configured yet) -- a dead network
+        # must never slow or break startup.
+        def worker() -> None:
+            update = check_for_update()
+            if update is not None:
+                self.after(0, lambda: self._on_update_found(update))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_found(self, update: UpdateInfo) -> None:
+        self.available_update = update
+        self.sidebar.show_update_available(update.version, lambda: webbrowser.open(update.url))
+
     def _on_settings_clicked(self) -> None:
-        SettingsDialog(self, cloud_client=self.cloud_client, cloud_session_store=self.cloud_session_store)
+        SettingsDialog(
+            self,
+            cloud_client=self.cloud_client,
+            cloud_session_store=self.cloud_session_store,
+            available_update=self.available_update,
+        )
 
     def _on_friends_changed(self, friend_ids: list[str]) -> None:
         previous_friend_ids = self.user_state.arbg_friend_user_ids

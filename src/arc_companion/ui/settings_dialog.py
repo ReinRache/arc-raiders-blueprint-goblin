@@ -8,6 +8,7 @@ from supabase import Client
 from arc_companion.cloud.errors import describe_error
 from arc_companion.cloud.sync import ensure_session, wipe_cloud_data
 from arc_companion.storage.supabase_session import SupabaseSessionStore
+from arc_companion.version import UpdateInfo, __version__
 from arc_companion.ui.theme import ERROR_COLOR, NEUTRAL_BUTTON_BORDER_COLOR, NEUTRAL_BUTTON_COLOR, SUCCESS_COLOR_LIGHT
 
 # Not a secret, not user-specific -- the designer's own donation link.
@@ -19,10 +20,16 @@ class SettingsDialog(ctk.CTkToplevel):
     friends roster, Steam linking). Starts minimal -- delete-my-data and a
     support link -- more sections land here over time."""
 
-    def __init__(self, master, cloud_client: Client, cloud_session_store: SupabaseSessionStore):
+    def __init__(
+        self,
+        master,
+        cloud_client: Client,
+        cloud_session_store: SupabaseSessionStore,
+        available_update: UpdateInfo | None = None,
+    ):
         super().__init__(master)
         self.title("Settings")
-        self.geometry("420x260")
+        self.geometry("420x330")
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -30,11 +37,13 @@ class SettingsDialog(ctk.CTkToplevel):
         self.cloud_client = cloud_client
         self.cloud_session_store = cloud_session_store
         self._wipe_in_flight = False
+        self.available_update = available_update
 
         self.grid_columnconfigure(0, weight=1)
 
         self._build_support_section()
         self._build_delete_data_section()
+        self._build_version_section()
 
     # ---- Support this project ----------------------------------------------------
 
@@ -120,3 +129,17 @@ class SettingsDialog(ctk.CTkToplevel):
             self.delete_data_status_msg.configure(
                 text=f"Delete failed ({error_code}) — check your connection.", text_color=ERROR_COLOR
             )
+
+    # ---- Version -----------------------------------------------------------------
+
+    def _build_version_section(self) -> None:
+        frame = ctk.CTkFrame(self, fg_color="transparent")
+        frame.grid(row=2, column=0, padx=24, pady=(0, 20), sticky="ew")
+        ctk.CTkLabel(frame, text=f"Version {__version__}", text_color="gray").grid(row=0, column=0, sticky="w")
+        if self.available_update is not None:
+            update = self.available_update
+            ctk.CTkButton(
+                frame,
+                text=f"Update available: v{update.version}",
+                command=lambda: webbrowser.open(update.url),
+            ).grid(row=1, column=0, sticky="w", pady=(6, 0))
