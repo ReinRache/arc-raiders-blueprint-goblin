@@ -12,9 +12,9 @@ import requests
 
 __version__ = "0.1.0"
 
-# "owner/repo" of the public GitHub repository, set once the repo exists.
-# While None the update check is disabled entirely (no network call at all).
-GITHUB_REPO: str | None = None
+# "owner/repo" of the public GitHub repository. Set to None to disable the check.
+# While None no network call is made at all.
+GITHUB_REPO: str | None = "ReinRache/arc-raiders-blueprint-goblin"
 
 _CHECK_TIMEOUT_SECONDS = 5
 
