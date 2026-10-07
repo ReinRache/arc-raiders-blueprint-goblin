@@ -22,10 +22,11 @@ from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.action_bar import ActionBar
 from arc_companion.ui.blueprint_grid import CELL_SIZE, ROW_CELL_SIZE, BlueprintGrid
-from arc_companion.ui.manage_friends_dialog import ManageFriendsDialog
+from arc_companion.ui.goblin_friends_dialog import GoblinFriendsDialog
 from arc_companion.ui.scan_dialog import ScanDialog
-from arc_companion.ui.settings_dialog import SettingsDialog
+from arc_companion.ui.options_dialog import OptionsDialog
 from arc_companion.ui.sidebar import SIDEBAR_WIDTH, Sidebar
+from arc_companion.ui.steam_friends_dialog import SteamFriendsDialog
 from arc_companion.ui.theme import ERROR_COLOR, SUCCESS_COLOR
 from arc_companion.version import UpdateInfo, __version__, check_for_update
 
@@ -182,8 +183,9 @@ class MainWindow(ctk.CTk):
             friend_ids=self.user_state.arbg_friend_user_ids,
             active_friend_ids=self.user_state.arbg_active_friend_ids,
             friends_cache=self.friends_cache,
-            on_manage_friends=self._on_manage_friends_clicked,
-            on_settings=self._on_settings_clicked,
+            on_goblin_friends=self._on_goblin_friends_clicked,
+            on_steam_friends=self._on_steam_friends_clicked,
+            on_options=self._on_options_clicked,
             on_active_friends_changed=self._on_active_friends_changed,
         )
         self.sidebar.grid(row=0, column=0, rowspan=2, sticky="nsew")
@@ -213,7 +215,7 @@ class MainWindow(ctk.CTk):
         self.title_name_label.grid(row=0, column=1, sticky="w")
 
         # A real button, not a text hyperlink -- matches the "Copy" button
-        # style already used in manage_friends_dialog.py's Goblin ID section
+        # style already used in goblin_friends_dialog.py's Goblin ID section
         # rather than the underlined-label link style used for the Steam API
         # key URL (that one opens an external page; this one is a same-app
         # action, closer in spirit to a normal button).
@@ -349,7 +351,7 @@ class MainWindow(ctk.CTk):
                 # to be worth reporting back instead of a dead-end generic
                 # message. Captured now, not inside the lambda -- see the
                 # SteamFriendsListPrivateError precedent in
-                # manage_friends_dialog.py for why an exception object
+                # steam_friends_dialog.py for why an exception object
                 # can't be closed over directly in a deferred self.after
                 # callback.
                 error_code = describe_error(exc)
@@ -492,13 +494,21 @@ class MainWindow(ctk.CTk):
         self.dirty = True
         self.action_bar.set_dirty(True)
 
-    def _on_manage_friends_clicked(self) -> None:
-        ManageFriendsDialog(
+    def _on_goblin_friends_clicked(self) -> None:
+        GoblinFriendsDialog(
+            self,
+            arbg_user_id=self.user_state.arbg_user_id,
+            friend_ids=self.user_state.arbg_friend_user_ids,
+            friends_cache=self.friends_cache,
+            on_friends_changed=self._on_friends_changed,
+        )
+
+    def _on_steam_friends_clicked(self) -> None:
+        SteamFriendsDialog(
             self,
             arbg_user_id=self.user_state.arbg_user_id,
             steam_id=self.user_state.steam_id,
             friend_ids=self.user_state.arbg_friend_user_ids,
-            friends_cache=self.friends_cache,
             on_friends_changed=self._on_friends_changed,
             on_steam_linked=self._on_steam_linked,
             cloud_client=self.cloud_client,
@@ -520,8 +530,8 @@ class MainWindow(ctk.CTk):
         self.available_update = update
         self.sidebar.show_update_available(update.version, lambda: webbrowser.open(update.url))
 
-    def _on_settings_clicked(self) -> None:
-        SettingsDialog(
+    def _on_options_clicked(self) -> None:
+        OptionsDialog(
             self,
             cloud_client=self.cloud_client,
             cloud_session_store=self.cloud_session_store,
@@ -536,7 +546,7 @@ class MainWindow(ctk.CTk):
             friend_ids, previous_friend_ids, previous_active_ids
         )
         # Drop any cache entry for a friend that's no longer in the roster --
-        # matches the immediate-effect expectation from Settings' add/remove,
+        # matches the immediate-effect expectation from the friends dialogs' add/remove,
         # rather than waiting for the next sync to prune it.
         self.friends_cache = {fid: snap for fid, snap in self.friends_cache.items() if fid in friend_ids}
         self.friends_cache_store.save(self.friends_cache)

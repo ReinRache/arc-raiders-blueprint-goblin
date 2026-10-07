@@ -10,8 +10,8 @@ from arc_companion.domain.status import BlueprintStatus
 # Not tied to blueprint status -- used across the action bar, dialogs, and
 # the tooltip popup. Pulled together during a pre-launch polish pass from
 # hex literals that had been duplicated (or near-duplicated) inline across
-# action_bar.py, main_window.py, manage_friends_dialog.py, scan_dialog.py,
-# settings_dialog.py, tooltip.py, and blueprint_grid.py's icon placeholder.
+# action_bar.py, main_window.py, goblin_friends_dialog.py, steam_friends_dialog.py, scan_dialog.py,
+# options_dialog.py, tooltip.py, and blueprint_grid.py's icon placeholder.
 # Defined before STATUS_COLORS/HIGHLIGHT_COLORS below since one of them
 # (SUCCESS_COLOR) is reused there.
 
@@ -25,8 +25,8 @@ SUCCESS_COLOR = "#30EF85"
 # them wasn't asked for, just centralizing the existing values.
 SUCCESS_COLOR_LIGHT = "#81C784"
 # Transient failure/error status text (sync failed, scan validation failed,
-# delete failed) -- appears across ActionBar, ScanDialog, ManageFriendsDialog,
-# and SettingsDialog.
+# delete failed) -- appears across ActionBar, ScanDialog, the friends dialogs,
+# and OptionsDialog.
 ERROR_COLOR = "#E57373"
 # ScanDialog's Expedition-regression caution text -- the one caution-toned
 # (not error, not success) status color in the app.

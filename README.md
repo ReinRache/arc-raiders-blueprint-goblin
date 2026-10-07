@@ -30,11 +30,11 @@ newer version is released, an **Update available** button appears in the sidebar
 - **Click a blueprint's icon or its status button** to cycle it:
   Unowned → Owned → Want → Have (a spare).
 - **Search** by name above the grid.
-- **Friends:** share your *Goblin ID* (Manage Friends) and add your friends' IDs.
+- **Friends:** share your *Goblin ID* (Goblin ID Friends) and add your friends' IDs.
   Sync to see, on every tile, which friends own, want, or have spares.
 - **Trade Highlights** tiles get a green or cyan border when there's a good trade,
   hovering the icon tells you with whom.
-- **Link Steam** (optional) to show Steam names instead of Goblin IDs and to find
+- **Steam ID Friends** (optional): link Steam to show Steam names instead of Goblin IDs and to find
   which of your Steam friends already use the app.
 
 ### Importing from screenshots
@@ -53,7 +53,7 @@ positions proportionally), so crops and other formats won't work.
 
 If you sync, a row is stored in a cloud database (Supabase) containing your Goblin
 ID, your blueprint lists, and — only if you choose to link it — your public Steam
-ID. Friends can look rows up by Goblin ID. **Settings → Delete My Data** clears your
+ID. Friends can look rows up by Goblin ID. **Options → Delete My Data** clears your
 synced blueprint data. The app never sees your Steam password (Steam login happens
 in your browser via Steam's own OpenID page).
 

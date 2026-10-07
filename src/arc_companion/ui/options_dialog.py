@@ -15,9 +15,9 @@ from arc_companion.ui.theme import ERROR_COLOR, NEUTRAL_BUTTON_BORDER_COLOR, NEU
 SUPPORT_URL = "https://buymeacoffee.com/alwaysbegoblin"
 
 
-class SettingsDialog(ctk.CTkToplevel):
-    """General app settings, separate from ManageFriendsDialog (Goblin ID,
-    friends roster, Steam linking). Starts minimal -- delete-my-data and a
+class OptionsDialog(ctk.CTkToplevel):
+    """General app options, separate from the friends dialogs (GoblinFriendsDialog,
+    SteamFriendsDialog). Starts minimal -- delete-my-data and a
     support link -- more sections land here over time."""
 
     def __init__(
@@ -28,7 +28,7 @@ class SettingsDialog(ctk.CTkToplevel):
         available_update: UpdateInfo | None = None,
     ):
         super().__init__(master)
-        self.title("Settings")
+        self.title("Options")
         self.geometry("420x330")
         self.resizable(False, False)
         self.transient(master)
@@ -112,7 +112,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 # reporting back instead of a dead-end generic message.
                 # Captured now, not inside the lambda -- see the
                 # SteamFriendsListPrivateError precedent in
-                # manage_friends_dialog.py for why.
+                # steam_friends_dialog.py for why.
                 error_code = describe_error(exc)
                 self.after(0, lambda: self._on_delete_data_finished(success=False, error_code=error_code))
             else:

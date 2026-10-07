@@ -36,8 +36,9 @@ class Sidebar(ctk.CTkFrame):
         friend_ids: list[str],
         active_friend_ids: list[str],
         friends_cache: dict[str, FriendProfileSnapshot],
-        on_manage_friends: Callable[[], None] | None = None,
-        on_settings: Callable[[], None] | None = None,
+        on_goblin_friends: Callable[[], None] | None = None,
+        on_steam_friends: Callable[[], None] | None = None,
+        on_options: Callable[[], None] | None = None,
         on_active_friends_changed: Callable[[list[str]], None] | None = None,
         **kwargs,
     ):
@@ -52,11 +53,11 @@ class Sidebar(ctk.CTkFrame):
         # technique BlueprintCard already uses against its own children.
         self.grid_propagate(False)
         self.total_blueprints = total_blueprints
-        # Row 3 (FriendsSection) is the one growable row -- static nav stays
+        # Row 4 (FriendsSection) is the one growable row -- static nav stays
         # a fixed height at the top, the friends list fills and internally
         # scrolls through whatever's left below it. No new column, no width
         # change: friend comparison is ambient here, not a separate screen.
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(4, weight=1)
 
         # Falls back to the old text wordmark if the image is ever missing --
         # e.g. a build that didn't bundle data/images correctly -- rather
@@ -81,29 +82,25 @@ class Sidebar(ctk.CTkFrame):
         # other secondary/dismissive button in the app instead (Remove,
         # Delete My Data, Clean Up Obsolete Collections) rather than
         # inventing a one-off look just for these two.
-        self.btn_manage_friends = ctk.CTkButton(
-            self,
-            text="Manage Friends",
-            fg_color=NEUTRAL_BUTTON_COLOR,
-            border_width=1,
-            border_color=NEUTRAL_BUTTON_BORDER_COLOR,
-            anchor="w",
-            command=self._handle_manage_friends_click,
-        )
-        self.btn_manage_friends.grid(row=1, column=0, padx=20, pady=5, sticky="ew")
-        self._on_manage_friends = on_manage_friends
+        def nav_button(text: str, row: int, command) -> ctk.CTkButton:
+            button = ctk.CTkButton(
+                self,
+                text=text,
+                fg_color=NEUTRAL_BUTTON_COLOR,
+                border_width=1,
+                border_color=NEUTRAL_BUTTON_BORDER_COLOR,
+                anchor="w",
+                command=command,
+            )
+            button.grid(row=row, column=0, padx=20, pady=5, sticky="ew")
+            return button
 
-        self.btn_settings = ctk.CTkButton(
-            self,
-            text="Settings",
-            fg_color=NEUTRAL_BUTTON_COLOR,
-            border_width=1,
-            border_color=NEUTRAL_BUTTON_BORDER_COLOR,
-            anchor="w",
-            command=self._handle_settings_click,
-        )
-        self.btn_settings.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
-        self._on_settings = on_settings
+        self._on_goblin_friends = on_goblin_friends
+        self._on_steam_friends = on_steam_friends
+        self._on_options = on_options
+        self.btn_goblin_friends = nav_button("Goblin ID Friends", 1, lambda: self._call(self._on_goblin_friends))
+        self.btn_steam_friends = nav_button("Steam ID Friends", 2, lambda: self._call(self._on_steam_friends))
+        self.btn_options = nav_button("Options", 3, lambda: self._call(self._on_options))
 
         self._on_active_friends_changed = on_active_friends_changed
         self.friends_section = FriendsSection(
@@ -113,7 +110,7 @@ class Sidebar(ctk.CTkFrame):
             cache=friends_cache,
             on_active_changed=self._handle_active_friends_changed,
         )
-        self.friends_section.grid(row=3, column=0, sticky="nsew")
+        self.friends_section.grid(row=4, column=0, sticky="nsew")
 
         # Hidden until a startup update check finds a newer release (see
         # show_update_available) -- most launches never show it.
@@ -121,15 +118,12 @@ class Sidebar(ctk.CTkFrame):
 
     def show_update_available(self, version: str, on_click: Callable[[], None]) -> None:
         self.btn_update.configure(text=f"Update available: v{version}", command=on_click)
-        self.btn_update.grid(row=4, column=0, padx=20, pady=(5, 15), sticky="ew")
+        self.btn_update.grid(row=5, column=0, padx=20, pady=(5, 15), sticky="ew")
 
-    def _handle_manage_friends_click(self) -> None:
-        if self._on_manage_friends is not None:
-            self._on_manage_friends()
-
-    def _handle_settings_click(self) -> None:
-        if self._on_settings is not None:
-            self._on_settings()
+    @staticmethod
+    def _call(callback: Callable[[], None] | None) -> None:
+        if callback is not None:
+            callback()
 
     def _handle_active_friends_changed(self, active_ids: list[str]) -> None:
         if self._on_active_friends_changed is not None:
