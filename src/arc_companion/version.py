@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 import requests
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 # "owner/repo" of the public GitHub repository. Set to None to disable the check.
 # While None no network call is made at all.
