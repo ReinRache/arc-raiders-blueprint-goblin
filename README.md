@@ -24,8 +24,6 @@ Your progress and Goblin ID are saved in `%APPDATA%\ArcRaidersBlueprintGoblin`
 (paste that into Explorer's address bar), **not** next to the `.exe`. To update,
 just extract the new version anywhere and run it — everything carries over. When a
 newer version is released, an **Update available** button appears in the sidebar.
-If you're upgrading from an early test build that kept `config.json` next to the
-`.exe`, it's copied over automatically the first time you run the new version.
 
 ## Using it
 
