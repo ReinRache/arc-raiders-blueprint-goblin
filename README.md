@@ -1,10 +1,10 @@
 # Arc Raiders Blueprint Goblin
 
-A free desktop app for tracking your *Arc Raiders* crafting blueprints — what you
+A free desktop app for tracking your *Arc Raiders* blueprint collection — what you
 own, what you want, what you have spares of — and comparing with your friends to
-spot trades.
+spot helpful trades.
 
-> Unofficial fan tool. Not affiliated with or endorsed by Embark Studios.
+> Unofficial fan tool. Not affiliated with nor endorsed by Embark Studios.
 
 ## Download (Windows)
 
@@ -20,9 +20,12 @@ code-signed (certificates cost money for a free hobby project), so SmartScreen
 doesn't recognize it. Click **More info → Run anyway**. The full source is in this
 repository if you'd like to inspect or build it yourself.
 
-Your progress is saved next to the `.exe` (`config.json`) — keep that file to keep
-your collection when you update. When a newer version is released, an **Update
-available** button appears in the app's sidebar.
+Your progress and Goblin ID are saved in `%APPDATA%\ArcRaidersBlueprintGoblin`
+(paste that into Explorer's address bar), **not** next to the `.exe`. To update,
+just extract the new version anywhere and run it — everything carries over. When a
+newer version is released, an **Update available** button appears in the sidebar.
+If you're upgrading from an early test build that kept `config.json` next to the
+`.exe`, it's copied over automatically the first time you run the new version.
 
 ## Using it
 
@@ -30,9 +33,9 @@ available** button appears in the app's sidebar.
   Unowned → Owned → Want → Have (a spare).
 - **Search** by name above the grid.
 - **Friends:** share your *Goblin ID* (Manage Friends) and add your friends' IDs.
-  Sync to see, on every tile, which friends own, want, or have spares — tiles get a
-  green or cyan border when there's a good trade, and hovering the icon tells you
-  with whom.
+  Sync to see, on every tile, which friends own, want, or have spares.
+- **Trade Highlights** tiles get a green or cyan border when there's a good trade,
+  hovering the icon tells you with whom.
 - **Link Steam** (optional) to show Steam names instead of Goblin IDs and to find
   which of your Steam friends already use the app.
 
@@ -77,7 +80,7 @@ python -m PyInstaller arc_companion.spec --noconfirm   # build dist/
 
 ## Support
 
-Free and always will be. If it saved you time, you can
+Free and always will be. If you and your friends find it useful, you can
 [buy me a coffee](https://buymeacoffee.com/alwaysbegoblin).
 
 ## License
