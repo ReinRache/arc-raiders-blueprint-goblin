@@ -379,7 +379,10 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
 
     def set_search_query(self, query: str) -> None:
         self._search_query = query.lower().strip()
-        self.render()
+        # New results always start at the top -- the old scroll offset means
+        # nothing for a different list (and is what used to strand the view
+        # past the end of a shorter filtered list; see _sync_scroll).
+        self.render(reset_scroll=True)
 
     def refresh_status(self, blueprint_id: int) -> None:
         # My own status is itself an input to compute_highlight(), so a
@@ -425,7 +428,7 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
             )
         return self._status_icon_cache[key]
 
-    def render(self) -> None:
+    def render(self, reset_scroll: bool = False) -> None:
         # Cards are positioned with place(), not grid(). CTkScrollableFrame's
         # canvas stretches this frame to a *forced* width rather than letting
         # it size itself naturally, and in that situation Tk's grid geometry
@@ -523,3 +526,27 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         # reachable by scrolling. Confirmed via CTkBaseClass.place()'s own
         # _apply_argument_scaling call, not assumed.
         tkinter.Frame.configure(self, height=self._apply_widget_scaling(content_height))
+        self._sync_scroll(reset_scroll)
+
+    def _sync_scroll(self, reset_to_top: bool) -> None:
+        # Explicitly re-syncs the canvas's scroll region and view instead of
+        # trusting CTkScrollableFrame's own <Configure>-driven update. That
+        # update never fires in this case: after a user scrolls down and then
+        # filters, the shorter content sits at the top, *outside* the scrolled
+        # viewport, and Tk only resizes a canvas window item (and sends it
+        # <Configure>) while it's being drawn -- so the frame stays its old
+        # height, the scroll region stays stale, and the view stays parked
+        # past the end of the content: an empty grid until something nudges
+        # the canvas (a different query, a scroll). Reported by a tester as
+        # "my first search shows nothing; I have to search twice".
+        canvas = self._parent_canvas
+        if reset_to_top:
+            canvas.yview_moveto(0)  # back in view first, so the frame redraws
+        canvas.configure(scrollregion=canvas.bbox("all"))
+        content_px = canvas.bbox("all")[3] if canvas.bbox("all") else 0
+        viewport_px = canvas.winfo_height()
+        top_px = canvas.canvasy(0)
+        if content_px <= viewport_px:
+            canvas.yview_moveto(0)
+        elif top_px > content_px - viewport_px:
+            canvas.yview_moveto((content_px - viewport_px) / content_px)
