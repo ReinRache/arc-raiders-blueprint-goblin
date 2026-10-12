@@ -124,3 +124,51 @@ def test_apply_full_reset_downgrades_missing_owned_but_preserves_have():
 def test_apply_full_reset_upgrades_newly_found():
     owned, wanted, spare = apply_full_reset({7}, set(), set(), set())
     assert status_for(7, owned, wanted, spare) == BlueprintStatus.OWNED
+
+
+# ---- Layout-driven positions & category-scoped merges (Frozen Trail) ------
+
+
+def test_item_id_for_position_follows_the_layout_not_a_formula():
+    from arc_companion.vision.grid_calibration import item_id_for_position
+
+    # The game inserted item 84 into the middle: ids keep their values and
+    # just shift position -- one added line in the layout file.
+    layout = [1, 2, 84, 3, 4]
+    assert [item_id_for_position(layout, 1, c, 3) for c in (1, 2, 3)] == [1, 2, 84]
+    assert [item_id_for_position(layout, 2, c, 3) for c in (1, 2, 3)] == [3, 4, None]
+    assert item_id_for_position(layout, 3, 1, 3) is None  # past the end
+    assert item_id_for_position(layout, 1, 4, 3) is None  # off the grid
+
+
+def test_legacy_wrapper_matches_the_old_formula():
+    from arc_companion.vision.grid_calibration import blueprint_id_for_position
+
+    assert all(blueprint_id_for_position(r, c) == (r - 1) * 10 + c for r in range(1, 9) for c in range(1, 11))
+
+
+def test_grid_size_comes_from_the_layout_length():
+    from arc_companion.vision.grid_calibration import total_rows, visible_rows_for_scroll
+
+    assert total_rows(14, 5) == 3 and total_rows(15, 5) == 3 and total_rows(16, 5) == 4
+    # a grid shorter than the viewport shows all its rows from either end
+    assert list(visible_rows_for_scroll(True, 3, 6)) == [1, 2, 3]
+    assert list(visible_rows_for_scroll(False, 3, 6)) == [1, 2, 3]
+
+
+def test_scoped_merge_ignores_ids_outside_the_scanned_panel():
+    from arc_companion.vision.import_merge import apply_full_reset, compute_merge_outcome
+
+    blueprints_owned = set(range(1, 11))  # 10 owned blueprints
+    stencils = {1001, 1002, 1003}
+    owned = blueprints_owned | {1001}
+    # A Stencils-only scan finds 1001 and 1002; with scope, the 10 owned
+    # blueprints are NOT "missing from the scan".
+    outcome = compute_merge_outcome({1001, 1002}, owned, set(), set(), scope_ids=stencils)
+    assert outcome.regression_ids == set() and outcome.newly_found_ids == {1002}
+    assert not outcome.needs_confirmation
+    # unscoped (legacy) behavior would have flagged all 10:
+    assert len(compute_merge_outcome({1001, 1002}, owned, set(), set()).regression_ids) == 10
+
+    new_owned, _, _ = apply_full_reset({1002}, owned, set(), set(), scope_ids=stencils)
+    assert new_owned == blueprints_owned | {1002}  # blueprints untouched; 1001 un-owned; 1002 added

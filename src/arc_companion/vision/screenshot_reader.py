@@ -1,18 +1,21 @@
 import dataclasses
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
 from PIL import Image
 
 from arc_companion.vision.grid_calibration import (
-    COLUMNS_PER_ROW,
-    OWNED_ICON_BRIGHTNESS_THRESHOLD,
+    LEGACY_LAYOUT,
+    LEGACY_SPEC,
     GridGeometry,
-    blueprint_id_for_position,
+    PanelSpec,
     cell_origin,
     geometry_for,
     is_plausible_aspect_ratio,
+    item_id_for_position,
     readable_rows_for_scroll,
+    total_rows,
     visible_rows_for_scroll,
 )
 
@@ -51,7 +54,7 @@ def _has_border_near(image: np.ndarray, geometry: GridGeometry, origin_y: float)
     return bool((region.astype(float).sum(axis=2) > 150).any())
 
 
-def find_panel(image: np.ndarray) -> bool:
+def find_panel(image: np.ndarray, spec: PanelSpec = LEGACY_SPEC) -> bool:
     """Confirms this looks like a Blueprints-panel screenshot. Returns False
     (not an exception) so callers can show a plain retry message rather than
     a stack trace. Not tied to one fixed resolution — scales the calibrated
@@ -60,9 +63,9 @@ def find_panel(image: np.ndarray) -> bool:
     a cheap aspect-ratio sanity check to reject anything wildly different
     before doing that work."""
     height, width = image.shape[:2]
-    if not is_plausible_aspect_ratio(width, height):
+    if not is_plausible_aspect_ratio(width, height, spec):
         return False
-    geometry = geometry_for(width, height)
+    geometry = geometry_for(width, height, spec)
     # Cell (1, 1)'s left border is visible near the top when scrolled to the
     # top; the bottom-scroll origin's slot 0 is mostly clipped off-screen, so
     # check slot 1 (one cell down) there instead, which is always fully
@@ -104,9 +107,9 @@ def _scrollbar_thumb_bounds(image: np.ndarray, geometry: GridGeometry) -> tuple[
     return int(thumb_top), int(thumb_bottom)
 
 
-def is_pinned_top(image: np.ndarray) -> bool:
+def is_pinned_top(image: np.ndarray, spec: PanelSpec = LEGACY_SPEC) -> bool:
     height, width = image.shape[:2]
-    geometry = geometry_for(width, height)
+    geometry = geometry_for(width, height, spec)
     bounds = _scrollbar_thumb_bounds(image, geometry)
     if bounds is None:
         return False
@@ -114,9 +117,9 @@ def is_pinned_top(image: np.ndarray) -> bool:
     return abs(thumb_top - geometry.scrollbar_track_top) <= geometry.scrollbar_pin_tolerance
 
 
-def is_pinned_bottom(image: np.ndarray) -> bool:
+def is_pinned_bottom(image: np.ndarray, spec: PanelSpec = LEGACY_SPEC) -> bool:
     height, width = image.shape[:2]
-    geometry = geometry_for(width, height)
+    geometry = geometry_for(width, height, spec)
     bounds = _scrollbar_thumb_bounds(image, geometry)
     if bounds is None:
         return False
@@ -125,7 +128,7 @@ def is_pinned_bottom(image: np.ndarray) -> bool:
 
 
 def _is_owned_icon_present(
-    image: np.ndarray, geometry: GridGeometry, cell_x: float, cell_y: float
+    image: np.ndarray, geometry: GridGeometry, cell_x: float, cell_y: float, threshold: float
 ) -> bool:
     x0, x1 = round(cell_x + geometry.book_icon_rel_x[0]), round(cell_x + geometry.book_icon_rel_x[1])
     y0, y1 = round(cell_y + geometry.book_icon_rel_y[0]), round(cell_y + geometry.book_icon_rel_y[1])
@@ -136,7 +139,7 @@ def _is_owned_icon_present(
         return False
     mean_brightness = region.astype(float).sum(axis=2).mean()
     # A color value, not a spatial measurement -- does not scale with resolution.
-    return bool(mean_brightness > OWNED_ICON_BRIGHTNESS_THRESHOLD)
+    return bool(mean_brightness > threshold)
 
 
 def _find_nearby_border_y(image: np.ndarray, x: int, y_guess: int, search_radius: int) -> int | None:
@@ -186,7 +189,12 @@ def refine_geometry(image: np.ndarray, geometry: GridGeometry, pinned_top: bool)
     return dataclasses.replace(geometry, origin_y_bottom=geometry.origin_y_bottom + shift)
 
 
-def read_grid(image: np.ndarray, pinned_top: bool) -> dict[int, bool]:
+def read_grid(
+    image: np.ndarray,
+    pinned_top: bool,
+    spec: PanelSpec = LEGACY_SPEC,
+    layout: Sequence[int] = LEGACY_LAYOUT,
+) -> dict[int, bool]:
     """Reads every blueprint id in this screenshot's *reliably readable* rows
     (see readable_rows_for_scroll — the one row-slot at the viewport's outer
     edge is skipped, since it's clipped by the panel's own chrome and is
@@ -198,17 +206,18 @@ def read_grid(image: np.ndarray, pinned_top: bool) -> dict[int, bool]:
     cross-check the one row genuinely shared between a top and bottom
     submission."""
     height, width = image.shape[:2]
-    geometry = refine_geometry(image, geometry_for(width, height), pinned_top)
+    geometry = refine_geometry(image, geometry_for(width, height, spec), pinned_top)
     results: dict[int, bool] = {}
-    all_rows = visible_rows_for_scroll(pinned_top)
-    readable = set(readable_rows_for_scroll(pinned_top))
+    rows_total = total_rows(len(layout), spec.columns)
+    all_rows = visible_rows_for_scroll(pinned_top, rows_total, spec.rows_per_viewport)
+    readable = set(readable_rows_for_scroll(pinned_top, rows_total, spec.rows_per_viewport))
     for visible_row_index, logical_row in enumerate(all_rows):
         if logical_row not in readable:
             continue
-        for col in range(1, COLUMNS_PER_ROW + 1):
-            blueprint_id = blueprint_id_for_position(logical_row, col)
-            if blueprint_id is None:
+        for col in range(1, spec.columns + 1):
+            item_id = item_id_for_position(layout, logical_row, col, spec.columns)
+            if item_id is None:
                 continue
             x, y = cell_origin(visible_row_index, col, pinned_top, geometry)
-            results[blueprint_id] = _is_owned_icon_present(image, geometry, x, y)
+            results[item_id] = _is_owned_icon_present(image, geometry, x, y, spec.owned_brightness_threshold)
     return results
