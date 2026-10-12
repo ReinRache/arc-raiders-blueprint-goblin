@@ -3,7 +3,6 @@ past the end of the (much shorter) filtered list -- an empty grid until
 something nudged the canvas. See BlueprintGrid._sync_scroll."""
 
 import time
-import tkinter
 
 import customtkinter as ctk
 import pytest
@@ -14,19 +13,14 @@ from arc_companion.domain.status import BlueprintStatus
 from arc_companion.ui.blueprint_grid import BlueprintGrid
 
 
-# One Tk root for the whole file: repeatedly creating/destroying roots in a
-# single process is flaky, and each test resets the state it touches.
 @pytest.fixture(scope="module")
-def grid():
-    try:
-        root = ctk.CTk()
-    except tkinter.TclError:
-        pytest.skip("no display available for Tk")
-    root.geometry("1500x700")
-    blueprints = load_blueprints()
+def grid(tk_root):
+    root = tk_root
+    frame = ctk.CTkFrame(root)
+    frame.pack(fill="both", expand=True)
     g = BlueprintGrid(
-        root,
-        blueprints=blueprints,
+        frame,
+        blueprints=load_blueprints(),
         status_for_id=lambda _id: BlueprintStatus.UNOWNED,
         on_cycle=lambda _id: None,
         friend_counts_for_id=lambda _id: FriendStatusCounts(),
@@ -38,7 +32,7 @@ def grid():
         root.update()
         time.sleep(0.25)
     yield root, g
-    root.destroy()
+    frame.destroy()
 
 
 def _cards_in_view(root, g):

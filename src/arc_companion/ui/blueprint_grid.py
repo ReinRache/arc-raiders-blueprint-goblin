@@ -78,7 +78,7 @@ def _wrap_name(name: str, font: ctk.CTkFont, max_width: int) -> str:
 
 
 def _load_raw_icon(blueprint: Blueprint) -> Image.Image | None:
-    if not blueprint.image_path.exists():
+    if blueprint.image_path is None or not blueprint.image_path.exists():
         return None
     return Image.open(blueprint.image_path).convert("RGBA")
 
@@ -285,6 +285,8 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         self._tinted_backdrop_cache: dict[BlueprintStatus, Image.Image | None] = {}
         self._status_icon_cache: dict[tuple[int, BlueprintStatus], ctk.CTkImage | None] = {}
         self._search_query = ""
+        # None = every category (the "All" view).
+        self._category: str | None = None
         self._resize_after_id: str | None = None
         # 0 is not a value compute_columns() can ever return (it's clamped to
         # >= 1), so the very first real <Configure> event below is guaranteed
@@ -377,6 +379,19 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         self._resize_after_id = None
         self.render()
 
+    def set_category(self, category: str | None) -> None:
+        """Show only one category (None = all). Like a new search, a new view
+        is a different list, so it starts at the top."""
+        if category == self._category:
+            return
+        self._category = category
+        self.render(reset_scroll=True)
+
+    def _is_visible(self, bp: Blueprint) -> bool:
+        if self._category is not None and bp.category != self._category:
+            return False
+        return not self._search_query or self._search_query in bp.name.lower()
+
     def set_search_query(self, query: str) -> None:
         self._search_query = query.lower().strip()
         # New results always start at the top -- the old scroll offset means
@@ -462,10 +477,7 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
             # self._search_query is already set to here, so nothing typed
             # during this window is lost.
             return
-        if self._search_query:
-            visible = [bp for bp in self.blueprints if self._search_query in bp.name.lower()]
-        else:
-            visible = self.blueprints
+        visible = [bp for bp in self.blueprints if self._is_visible(bp)]
         visible_ids = {bp.id for bp in visible}
 
         for bp_id, card in self.cards.items():

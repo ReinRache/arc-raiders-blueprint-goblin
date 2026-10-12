@@ -13,7 +13,7 @@ from arc_companion.cloud.errors import describe_error
 from arc_companion.cloud.friends import fetch_friend_profiles
 from arc_companion.cloud.steam_proxy import get_player_summaries
 from arc_companion.cloud.sync import RecoveryOutcome, ensure_session, push_profile_with_recovery
-from arc_companion.data.blueprints import load_blueprints
+from arc_companion.data.blueprints import CATEGORY_LABELS, load_blueprints
 from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
 from arc_companion.paths import resource_root, user_data_root
@@ -159,6 +159,8 @@ class MainWindow(ctk.CTk):
 
         self.blueprints = load_blueprints()
         self.total_blueprints = len(self.blueprints)
+        # Which category the grid is showing (None = All); drives the header count.
+        self._view_category: str | None = None
 
         # Creating the client is a local no-op (no network call) -- the
         # actual anonymous sign-in only happens lazily, inside ensure_session,
@@ -232,15 +234,28 @@ class MainWindow(ctk.CTk):
         self.filter_frame = ctk.CTkFrame(self.main_view, fg_color="transparent")
         self.filter_frame.grid(row=1, column=0, pady=(0, 15), sticky="ew")
 
+        # The in-game collection has three kinds of item (blueprints, stencils,
+        # designs); they share one list and these buttons just choose which
+        # to show. "All" is the default.
+        self._view_by_label: dict[str, str | None] = {"All": None}
+        self._view_by_label.update({label: category for category, label in CATEGORY_LABELS.items()})
+        self.view_buttons = ctk.CTkSegmentedButton(
+            self.filter_frame,
+            values=list(self._view_by_label),
+            command=self._on_view_changed,
+        )
+        self.view_buttons.set("All")
+        self.view_buttons.grid(row=0, column=0, sticky="w", padx=(0, 15))
+
         self.search_var = ctk.StringVar()
         self.search_var.trace_add("write", self._on_search_changed)
         self.search_bar = ctk.CTkEntry(
             self.filter_frame,
-            placeholder_text="Search blueprint by name...",
+            placeholder_text="Search by name...",
             textvariable=self.search_var,
-            width=350,
+            width=300,
         )
-        self.search_bar.grid(row=0, column=0, sticky="w")
+        self.search_bar.grid(row=0, column=1, sticky="w")
 
         self.grid_view = BlueprintGrid(
             self.main_view,
@@ -298,7 +313,16 @@ class MainWindow(ctk.CTk):
         return self.user_state.steam_persona_name or self.user_state.arbg_user_id
 
     def _collection_suffix(self) -> str:
-        return f" Collection {len(self.owned_ids)}/{self.total_blueprints}"
+        # Counts for the view being shown (all items, or one category), and
+        # only ids that exist in the item list -- a saved/synced id for an
+        # item this build doesn't know yet must not inflate the numerator.
+        in_view = {bp.id for bp in self.blueprints if self._view_category in (None, bp.category)}
+        return f" Collection {len(self.owned_ids & in_view)}/{len(in_view)}"
+
+    def _on_view_changed(self, label: str) -> None:
+        self._view_category = self._view_by_label[label]
+        self.grid_view.set_category(self._view_category)
+        self.title_suffix_label.configure(text=self._collection_suffix())
 
     def _copy_own_id(self) -> None:
         self.clipboard_clear()
