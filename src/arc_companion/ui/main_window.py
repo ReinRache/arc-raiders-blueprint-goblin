@@ -14,6 +14,7 @@ from arc_companion.cloud.friends import fetch_friend_profiles
 from arc_companion.cloud.steam_proxy import get_player_summaries
 from arc_companion.cloud.sync import RecoveryOutcome, ensure_session, push_profile_with_recovery
 from arc_companion.data.blueprints import CATEGORY_LABELS, load_blueprints
+from arc_companion.data.layouts import ordered_items
 from arc_companion.domain.friends import FriendStatusCounts, friend_status_counts_for, reconcile_active_friends
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
 from arc_companion.paths import resource_root, user_data_root
@@ -157,7 +158,8 @@ class MainWindow(ctk.CTk):
         self.wanted_ids = set(self.user_state.blueprints_wanted)
         self.spare_ids = set(self.user_state.blueprints_spare)
 
-        self.blueprints = load_blueprints()
+        # In the game's own on-screen order (data/layouts), category by category.
+        self.blueprints = ordered_items(load_blueprints())
         self.total_blueprints = len(self.blueprints)
         # Which category the grid is showing (None = All); drives the header count.
         self._view_category: str | None = None

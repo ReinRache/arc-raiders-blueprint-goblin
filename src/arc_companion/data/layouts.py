@@ -13,8 +13,12 @@ the number of cells is simply the list's length.
 
 import csv
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from arc_companion.paths import resource_root
+
+if TYPE_CHECKING:
+    from arc_companion.data.blueprints import Blueprint
 
 LAYOUTS_DIR = resource_root() / "data" / "layouts"
 
@@ -41,3 +45,20 @@ def load_layout(category: str, known_ids: set[int] | None = None, path: Path | N
                 raise ValueError(f"{path.name}: id {item_id} appears more than once")
             seen.add(item_id)
     return ids
+
+
+def ordered_items(items: list[Blueprint]) -> list[Blueprint]:
+    """Items in the order the game shows them: category by category (Blueprints,
+    Stencils, Designs), each in its layout file's order, so the app's grid
+    mirrors the in-game screen. Anything missing from its layout (an item
+    added to blueprints.csv but not yet placed) goes at the end of its
+    category rather than disappearing."""
+    from arc_companion.data.blueprints import CATEGORIES
+
+    ordered: list = []
+    for category in CATEGORIES:
+        in_category = {bp.id: bp for bp in items if bp.category == category}
+        placed = [i for i in load_layout(category) if i in in_category]
+        ordered += [in_category[i] for i in placed]
+        ordered += [bp for bp in items if bp.category == category and bp.id not in set(placed)]
+    return ordered
