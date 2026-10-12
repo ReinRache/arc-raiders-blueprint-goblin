@@ -155,3 +155,12 @@ def test_unknown_filter_is_rejected(status_grid):
     _, g, _ = status_grid
     with pytest.raises(ValueError):
         g.set_status_filter("bogus")
+
+
+def test_column_count_follows_window_width_with_no_cap():
+    from arc_companion.ui.blueprint_grid import CELL_SIZE, compute_columns
+
+    assert compute_columns(0) == 1  # never zero
+    assert compute_columns(CELL_SIZE * 8) == 8
+    assert compute_columns(CELL_SIZE * 17) == 17  # the new in-game width
+    assert compute_columns(CELL_SIZE * 40 + 5) == 40  # no ceiling

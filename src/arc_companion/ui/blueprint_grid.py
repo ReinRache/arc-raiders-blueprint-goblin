@@ -63,7 +63,6 @@ _CARD_WIDTH = 140
 _CARD_HEIGHT = 172
 _CARD_GAP = 8
 _NAME_WIDTH = 122
-_MAX_COLUMNS = 10
 _RESIZE_DEBOUNCE_MS = 150
 
 
@@ -273,7 +272,10 @@ ROW_CELL_SIZE = _CARD_HEIGHT + _CARD_GAP
 
 
 def compute_columns(available_width: int) -> int:
-    return max(1, min(_MAX_COLUMNS, available_width // CELL_SIZE))
+    # No upper cap: as wide as the window allows. (It used to stop at 10, the
+    # old in-game Blueprints panel's width; the Frozen Trail collection screens
+    # are 17 across, so the grid just follows the window.)
+    return max(1, available_width // CELL_SIZE)
 
 
 class BlueprintGrid(ctk.CTkScrollableFrame):
