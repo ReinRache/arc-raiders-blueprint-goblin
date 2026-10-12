@@ -1,8 +1,8 @@
 # Arc Raiders Blueprint Goblin
 
-A free desktop app for tracking your *Arc Raiders* blueprint collection — what you
-own, what you want, what you have spares of — and comparing with your friends to
-spot helpful trades.
+A free desktop app for tracking your *Arc Raiders* collection — **Blueprints,
+Stencils and Designs** — what you own, what you want, what you have spares of, and
+comparing with your friends to spot helpful trades.
 
 > Unofficial fan tool. Not affiliated with nor endorsed by Embark Studios.
 
@@ -27,9 +27,12 @@ newer version is released, an **Update available** button appears in the sidebar
 
 ## Using it
 
-- **Click a blueprint's icon or its status button** to cycle it:
+- **Click an item's icon or its status button** to cycle it:
   Unowned → Owned → Want → Have (a spare).
-- **Search** by name above the grid.
+- **Tabs and filters:** switch between **All / Blueprints / Stencils / Designs**
+  above the grid (the header shows your progress for the view you're in), search by
+  name, and use **Show:** to narrow to *Trade opportunities*, *I want*, *I have spare*,
+  *I own* or *Missing*.
 - **Friends:** share your *Goblin ID* (Goblin ID Friends) and add your friends' IDs.
   Sync to see, on every tile, which friends own, want, or have spares.
 - **Trade Highlights** tiles get a green or cyan border when there's a good trade,
@@ -39,20 +42,34 @@ newer version is released, an **Update available** button appears in the sidebar
 
 ### Importing from screenshots
 
-Use **Scan Collection Screenshots** to import your blueprints automatically:
+Use **Scan Collection Screenshots** to import what you've found automatically. Each
+Collections tab is a single screen, so it's **one screenshot per tab**:
 
-1. In-game, open the Blueprints panel and scroll to the very **top**. Take a
-   **full-window screenshot of the Arc Raiders window** — not a cropped capture.
-2. Scroll to the very **bottom** and take a second one the same way.
-3. Both must be **PNG** files. Select them in the two steps of the dialog.
+1. In-game, open **Collections** and switch to the tab you want to import
+   (Blueprints, Stencils or Designs).
+2. Take a **full-window screenshot of the Arc Raiders window** — not a cropped
+   capture — and save it as a **PNG**.
+3. In the app, open the scan dialog and pick the file for that tab. Repeat for the
+   other tabs if you like; you only need the ones you want to update.
 
-The scanner relies on the whole game window being in the image (it measures
-positions proportionally), so crops and other formats won't work.
+The scanner checks which tab the screenshot shows and tells you if you've picked
+the wrong one. It relies on the whole game window being in the image (it measures
+positions proportionally), so crops and other formats won't work. It only ever
+adds what it finds on the tabs you scanned — other tabs are never touched.
+
+### Missing or "Unknown" items
+
+The game keeps adding items, and not every one has been identified yet — tiles we
+haven't named show as **Unknown Design #37** (the number is its position in-game).
+They're fully usable: you can mark them owned and trade them, and when the real
+name is added nothing you've recorded changes. If you know what one is (or an item
+is missing or misnamed), use **Options → Report a Missing Item**, or see
+[CONTRIBUTING.md](CONTRIBUTING.md) — adding an item is a two-line edit to a text file.
 
 ## Privacy
 
 If you sync, a row is stored in a cloud database (Supabase) containing your Goblin
-ID, your blueprint lists, and — only if you choose to link it — your public Steam
+ID, your collection lists (blueprints, stencils, designs), and — only if you choose to link it — your public Steam
 ID. Friends can look rows up by Goblin ID. **Options → Delete My Data** clears your
 synced blueprint data. The app never sees your Steam password (Steam login happens
 in your browser via Steam's own OpenID page).
@@ -81,6 +98,11 @@ python -m PyInstaller arc_companion.spec --noconfirm   # build dist/
 Free and always will be. If you and your friends find it useful, you can
 [buy me a coffee](https://buymeacoffee.com/alwaysbegoblin).
 
-## License
+## License and credits
 
-[MIT](LICENSE)
+The app's code is [MIT](LICENSE).
+
+ARC Raiders and EMBARK are trademarks of Embark Studios AB. Item names and icons are
+game content, © Embark Studios AB, used here by an unofficial fan tool; many were
+compiled from the community-run [ARC Raiders Wiki](https://arcraiders.wiki), whose
+community-written content is available under CC BY-SA.

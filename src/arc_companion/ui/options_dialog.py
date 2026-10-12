@@ -8,11 +8,17 @@ from supabase import Client
 from arc_companion.cloud.errors import describe_error
 from arc_companion.cloud.sync import ensure_session, wipe_cloud_data
 from arc_companion.storage.supabase_session import SupabaseSessionStore
-from arc_companion.version import UpdateInfo, __version__
+from arc_companion.version import GITHUB_REPO, UpdateInfo, __version__
 from arc_companion.ui.theme import ERROR_COLOR, NEUTRAL_BUTTON_BORDER_COLOR, NEUTRAL_BUTTON_COLOR, SUCCESS_COLOR_LIGHT
 
 # Not a secret, not user-specific -- the designer's own donation link.
 SUPPORT_URL = "https://buymeacoffee.com/alwaysbegoblin"
+
+
+def report_missing_item_url(repo: str | None) -> str:
+    """The prefilled-issue page (a GitHub issue form). Empty when no repo is
+    configured, in which case the button is disabled."""
+    return f"https://github.com/{repo}/issues/new?template=missing_item.yml" if repo else ""
 
 
 class OptionsDialog(ctk.CTkToplevel):
@@ -29,7 +35,7 @@ class OptionsDialog(ctk.CTkToplevel):
     ):
         super().__init__(master)
         self.title("Options")
-        self.geometry("420x330")
+        self.geometry("420x400")
         self.resizable(False, False)
         self.transient(master)
         self.grab_set()
@@ -55,8 +61,33 @@ class OptionsDialog(ctk.CTkToplevel):
             frame, text="☕ Support This Project", command=self._on_support_clicked
         ).grid(row=0, column=0, sticky="w")
 
+        # New items appear in the game faster than any one person can add
+        # them -- this is the community path: a prefilled GitHub issue (see
+        # .github/ISSUE_TEMPLATE/missing_item.yml and CONTRIBUTING.md).
+        self.report_button = ctk.CTkButton(
+            frame,
+            text="Report a Missing Item",
+            fg_color=NEUTRAL_BUTTON_COLOR,
+            border_width=1,
+            border_color=NEUTRAL_BUTTON_BORDER_COLOR,
+            command=self._on_report_clicked,
+            state="normal" if GITHUB_REPO else "disabled",
+        )
+        self.report_button.grid(row=1, column=0, sticky="w", pady=(10, 0))
+        ctk.CTkLabel(
+            frame,
+            text="Is a tile still \"Unknown\", misnamed, or missing its icon? Tell us what it is "
+            "and where it sits in-game.",
+            text_color="gray",
+            wraplength=360,
+            justify="left",
+        ).grid(row=2, column=0, sticky="w", pady=(4, 0))
+
     def _on_support_clicked(self) -> None:
         webbrowser.open(SUPPORT_URL)
+
+    def _on_report_clicked(self) -> None:
+        webbrowser.open(report_missing_item_url(GITHUB_REPO))
 
     # ---- Delete my data -------------------------------------------------------
 

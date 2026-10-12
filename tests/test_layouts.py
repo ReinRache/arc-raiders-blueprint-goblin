@@ -74,3 +74,10 @@ def test_shipped_order_mirrors_the_in_game_screen():
     by_category = {c: [bp.id for bp in ordered if bp.category == c] for c in CATEGORIES}
     for category in CATEGORIES:
         assert by_category[category] == load_layout(category)
+
+
+def test_report_a_missing_item_link_points_at_the_issue_form():
+    from arc_companion.ui.options_dialog import report_missing_item_url
+
+    assert report_missing_item_url("o/r") == "https://github.com/o/r/issues/new?template=missing_item.yml"
+    assert report_missing_item_url(None) == ""

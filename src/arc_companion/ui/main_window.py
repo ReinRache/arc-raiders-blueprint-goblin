@@ -22,7 +22,7 @@ from arc_companion.storage.friends_cache import FriendProfileSnapshot, FriendsCa
 from arc_companion.storage.local_store import LocalJSONStore
 from arc_companion.storage.supabase_session import SupabaseSessionStore
 from arc_companion.ui.action_bar import ActionBar
-from arc_companion.ui.blueprint_grid import CELL_SIZE, ROW_CELL_SIZE, BlueprintGrid
+from arc_companion.ui.blueprint_grid import CELL_SIZE, ROW_CELL_SIZE, STATUS_FILTERS, BlueprintGrid
 from arc_companion.ui.goblin_friends_dialog import GoblinFriendsDialog
 from arc_companion.ui.scan_dialog import ScanDialog
 from arc_companion.ui.options_dialog import OptionsDialog
@@ -259,6 +259,19 @@ class MainWindow(ctk.CTk):
         )
         self.search_bar.grid(row=0, column=1, sticky="w")
 
+        # "Show:" narrows by my status / trade potential, within the chosen
+        # category and search.
+        self._filter_key_by_label = {label: key for key, label in STATUS_FILTERS.items()}
+        ctk.CTkLabel(self.filter_frame, text="Show:").grid(row=0, column=2, padx=(15, 6))
+        self.status_filter_menu = ctk.CTkOptionMenu(
+            self.filter_frame,
+            values=list(STATUS_FILTERS.values()),
+            command=self._on_status_filter_changed,
+            width=170,
+        )
+        self.status_filter_menu.set(STATUS_FILTERS["all"])
+        self.status_filter_menu.grid(row=0, column=3)
+
         self.grid_view = BlueprintGrid(
             self.main_view,
             blueprints=self.blueprints,
@@ -320,6 +333,9 @@ class MainWindow(ctk.CTk):
         # item this build doesn't know yet must not inflate the numerator.
         in_view = {bp.id for bp in self.blueprints if self._view_category in (None, bp.category)}
         return f" Collection {len(self.owned_ids & in_view)}/{len(in_view)}"
+
+    def _on_status_filter_changed(self, label: str) -> None:
+        self.grid_view.set_status_filter(self._filter_key_by_label[label])
 
     def _on_view_changed(self, label: str) -> None:
         self._view_category = self._view_by_label[label]

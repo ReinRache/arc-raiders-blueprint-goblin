@@ -33,6 +33,17 @@ _HIGHLIGHT_TRADE_STATUS: dict[Highlight, BlueprintStatus] = {
     Highlight.THICK_CYAN: BlueprintStatus.WANT,
 }
 
+# Extra "Show:" filters on top of category + search. Keys are stable ids the
+# UI maps labels onto.
+STATUS_FILTERS: dict[str, str] = {
+    "all": "Everything",
+    "trades": "Trade opportunities",
+    "want": "I want",
+    "have": "I have spare",
+    "owned": "I own",
+    "missing": "Missing",
+}
+
 _ICON_SIZE = (86, 86)
 # The in-game Blueprints panel renders every icon on a distinct colored
 # "plate" behind it -- this reproduces that look by tinting the one real
@@ -287,6 +298,8 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         self._search_query = ""
         # None = every category (the "All" view).
         self._category: str | None = None
+        self._status_filter = "all"
+        self._render_pending = False
         self._resize_after_id: str | None = None
         # 0 is not a value compute_columns() can ever return (it's clamped to
         # >= 1), so the very first real <Configure> event below is guaranteed
@@ -387,10 +400,51 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
         self._category = category
         self.render(reset_scroll=True)
 
+    def set_status_filter(self, key: str) -> None:
+        """One of STATUS_FILTERS' keys. Starts at the top, like any new view."""
+        if key not in STATUS_FILTERS:
+            raise ValueError(f"unknown filter {key!r}")
+        if key == self._status_filter:
+            return
+        self._status_filter = key
+        self.render(reset_scroll=True)
+
+    def _passes_status_filter(self, bp: Blueprint) -> bool:
+        key = self._status_filter
+        if key == "all":
+            return True
+        status = self.status_for_id(bp.id)
+        if key == "want":
+            return status == BlueprintStatus.WANT
+        if key == "have":
+            return status == BlueprintStatus.HAVE
+        if key == "owned":  # a spare is a copy you own, too
+            return status in (BlueprintStatus.OWNED, BlueprintStatus.HAVE)
+        if key == "missing":
+            return status in (BlueprintStatus.UNOWNED, BlueprintStatus.WANT)
+        # "trades": exactly the tiles that carry a green/cyan highlight border
+        return compute_highlight(status, self.friend_counts_for_id(bp.id)) != Highlight.NONE
+
     def _is_visible(self, bp: Blueprint) -> bool:
         if self._category is not None and bp.category != self._category:
             return False
-        return not self._search_query or self._search_query in bp.name.lower()
+        if self._search_query and self._search_query not in bp.name.lower():
+            return False
+        return self._passes_status_filter(bp)
+
+    def _render_soon(self) -> None:
+        """Coalesced re-render for when data under an active filter changed
+        (a scan can refresh every card at once; rendering per card would be
+        a full layout each time)."""
+        if self._render_pending:
+            return
+        self._render_pending = True
+
+        def run() -> None:
+            self._render_pending = False
+            self.render()
+
+        self.after_idle(run)
 
     def set_search_query(self, query: str) -> None:
         self._search_query = query.lower().strip()
@@ -408,10 +462,16 @@ class BlueprintGrid(ctk.CTkScrollableFrame):
             icon = self._get_status_icon(card.blueprint, status)
             card.set_status(status, icon)
             self._refresh_card_overlay(blueprint_id)
+        # Under a status/trade filter, a changed status can add or remove a
+        # tile from the view.
+        if self._status_filter != "all":
+            self._render_soon()
 
     def refresh_friend_overlay(self) -> None:
         for blueprint_id in self.cards:
             self._refresh_card_overlay(blueprint_id)
+        if self._status_filter == "trades":
+            self._render_soon()
 
     def _refresh_card_overlay(self, blueprint_id: int) -> None:
         counts = self.friend_counts_for_id(blueprint_id)

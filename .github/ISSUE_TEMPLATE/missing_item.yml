@@ -1,0 +1,51 @@
+name: Missing / wrong item
+description: A tile is still "Unknown", misnamed, missing its icon, or a brand-new item isn't in the app yet.
+title: "[Item] "
+labels: ["data"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping fill in the collection! The more exact the position, the faster it gets added.
+        You can read an item's position straight from the in-game Collections screen (left-to-right, top-to-bottom, starting at 1).
+  - type: dropdown
+    id: category
+    attributes:
+      label: Which tab?
+      options:
+        - Blueprints
+        - Stencils
+        - Designs
+    validations:
+      required: true
+  - type: input
+    id: name
+    attributes:
+      label: Exact in-game item name
+      description: As shown when you hover/inspect the item. Leave blank only if you're reporting a wrong name.
+      placeholder: "e.g. Ornate Den Shelf"
+  - type: input
+    id: position
+    attributes:
+      label: Tile number on that tab
+      description: Count left-to-right, top-to-bottom from 1. If the app shows "Unknown Design #37", that number is the tile number.
+      placeholder: "e.g. 37"
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What's wrong?
+      options:
+        - Tile is "Unknown" - here is what it is
+        - Name is misspelled / wrong
+        - Icon is missing or wrong
+        - A new item isn't in the app at all
+        - Items appear in the wrong order
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Anything else (screenshot welcome)
+      description: A cropped screenshot of the tile and its neighbours is the most useful thing you can attach.
