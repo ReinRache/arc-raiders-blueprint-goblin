@@ -1,0 +1,1045 @@
+{
+ "blueprint": {
+  "found_counter": 47,
+  "total_counter": 91,
+  "tiles": [
+   {
+    "n": 1,
+    "found": true,
+    "name": "Extended Shotgun Mag III"
+   },
+   {
+    "n": 2,
+    "found": true,
+    "name": "Angled Grip III"
+   },
+   {
+    "n": 3,
+    "found": false,
+    "name": "Pulse Mine"
+   },
+   {
+    "n": 4,
+    "found": true,
+    "name": "Silencer II"
+   },
+   {
+    "n": 5,
+    "found": true,
+    "name": "Red Light Stick"
+   },
+   {
+    "n": 6,
+    "found": false,
+    "name": "Tactical Mk. 3 (Revival)"
+   },
+   {
+    "n": 7,
+    "found": false,
+    "name": "Compensator II"
+   },
+   {
+    "n": 8,
+    "found": true,
+    "name": "Muzzle Brake III"
+   },
+   {
+    "n": 9,
+    "found": false,
+    "name": "Tactical Mk 3. (Defensive)"
+   },
+   {
+    "n": 10,
+    "found": false,
+    "name": "Vita Spray"
+   },
+   {
+    "n": 11,
+    "found": true,
+    "name": "Medium Gun Parts"
+   },
+   {
+    "n": 12,
+    "found": false,
+    "name": "Tagging Grenade"
+   },
+   {
+    "n": 13,
+    "found": true,
+    "name": "Crash Mat"
+   },
+   {
+    "n": 14,
+    "found": true,
+    "name": "Bobcat"
+   },
+   {
+    "n": 15,
+    "found": true,
+    "name": "Defibrillator"
+   },
+   {
+    "n": 16,
+    "found": false,
+    "name": "Jupiter"
+   },
+   {
+    "n": 17,
+    "found": false,
+    "name": "Extended Medium Mag II"
+   },
+   {
+    "n": 18,
+    "found": true,
+    "name": "Tactical Mk.3 (Smoke)"
+   },
+   {
+    "n": 19,
+    "found": true,
+    "name": "Smoke Grenade"
+   },
+   {
+    "n": 20,
+    "found": false,
+    "name": "Dolabra"
+   },
+   {
+    "n": 21,
+    "found": false,
+    "name": "Shotgun Silencer"
+   },
+   {
+    "n": 22,
+    "found": true,
+    "name": "White Flag"
+   },
+   {
+    "n": 23,
+    "found": false,
+    "name": "Extended Light Mag II"
+   },
+   {
+    "n": 24,
+    "found": true,
+    "name": "Showstopper"
+   },
+   {
+    "n": 25,
+    "found": true,
+    "name": "Remote Raider Flare"
+   },
+   {
+    "n": 26,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 27,
+    "found": true,
+    "name": "Angled Grip II"
+   },
+   {
+    "n": 28,
+    "found": true,
+    "name": "Padded Stock III"
+   },
+   {
+    "n": 29,
+    "found": false,
+    "name": "Aphellon"
+   },
+   {
+    "n": 30,
+    "found": false,
+    "name": "Tempest"
+   },
+   {
+    "n": 31,
+    "found": false,
+    "name": "Tactical Mk.3 (Healing)"
+   },
+   {
+    "n": 32,
+    "found": true,
+    "name": "Vertical Grip III"
+   },
+   {
+    "n": 33,
+    "found": false,
+    "name": "Wolfpack"
+   },
+   {
+    "n": 34,
+    "found": false,
+    "name": "Combat Mk.3 (Flanking)"
+   },
+   {
+    "n": 35,
+    "found": true,
+    "name": "Torrente"
+   },
+   {
+    "n": 36,
+    "found": true,
+    "name": "Jolt Mine"
+   },
+   {
+    "n": 37,
+    "found": true,
+    "name": "Hullcracker"
+   },
+   {
+    "n": 38,
+    "found": false,
+    "name": "Vita Shot"
+   },
+   {
+    "n": 39,
+    "found": false,
+    "name": "Deadline"
+   },
+   {
+    "n": 40,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 41,
+    "found": false,
+    "name": "Shotgun Choke II"
+   },
+   {
+    "n": 42,
+    "found": true,
+    "name": "Anvil"
+   },
+   {
+    "n": 43,
+    "found": true,
+    "name": "Osprey"
+   },
+   {
+    "n": 44,
+    "found": false,
+    "name": "Tactical Mk.3 (Survivor)"
+   },
+   {
+    "n": 45,
+    "found": true,
+    "name": "Extended Shotgun Mag II"
+   },
+   {
+    "n": 46,
+    "found": true,
+    "name": "Advanced Camera"
+   },
+   {
+    "n": 47,
+    "found": true,
+    "name": "Powered Descender"
+   },
+   {
+    "n": 48,
+    "found": false,
+    "name": "Compensator III"
+   },
+   {
+    "n": 49,
+    "found": false,
+    "name": "Vulcano"
+   },
+   {
+    "n": 50,
+    "found": true,
+    "name": "Lightweight Stock"
+   },
+   {
+    "n": 51,
+    "found": false,
+    "name": "Trailblazer"
+   },
+   {
+    "n": 52,
+    "found": false,
+    "name": "Barricade Kit"
+   },
+   {
+    "n": 53,
+    "found": false,
+    "name": "Green Light Stick"
+   },
+   {
+    "n": 54,
+    "found": false,
+    "name": "Extended Medium Mag III"
+   },
+   {
+    "n": 55,
+    "found": true,
+    "name": "Lure Grenade"
+   },
+   {
+    "n": 56,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 57,
+    "found": false,
+    "name": "Combat Mk.3 (Aggressive)"
+   },
+   {
+    "n": 58,
+    "found": false,
+    "name": "Grappling Hook"
+   },
+   {
+    "n": 59,
+    "found": false,
+    "name": "Light Gun Parts"
+   },
+   {
+    "n": 60,
+    "found": false,
+    "name": "Extended Light Mag III"
+   },
+   {
+    "n": 61,
+    "found": true,
+    "name": "Il Toro"
+   },
+   {
+    "n": 62,
+    "found": false,
+    "name": "Bantam"
+   },
+   {
+    "n": 63,
+    "found": true,
+    "name": "Padded Stock"
+   },
+   {
+    "n": 64,
+    "found": true,
+    "name": "Heavy Gun Parts"
+   },
+   {
+    "n": 65,
+    "found": false,
+    "name": "Rascal"
+   },
+   {
+    "n": 66,
+    "found": false,
+    "name": "Canto"
+   },
+   {
+    "n": 67,
+    "found": true,
+    "name": "Bettina"
+   },
+   {
+    "n": 68,
+    "found": false,
+    "name": "Emperor Gateway Conduit"
+   },
+   {
+    "n": 69,
+    "found": true,
+    "name": "Fireworks Box"
+   },
+   {
+    "n": 70,
+    "found": false,
+    "name": "Gas Mine"
+   },
+   {
+    "n": 71,
+    "found": false,
+    "name": "Yellow Light Stick"
+   },
+   {
+    "n": 72,
+    "found": true,
+    "name": "Looting Mk.3 (Safekeeper)"
+   },
+   {
+    "n": 73,
+    "found": false,
+    "name": "Surge Coil"
+   },
+   {
+    "n": 74,
+    "found": true,
+    "name": "Complex Gun Parts"
+   },
+   {
+    "n": 75,
+    "found": true,
+    "name": "Explosive Mine"
+   },
+   {
+    "n": 76,
+    "found": true,
+    "name": "Venator"
+   },
+   {
+    "n": 77,
+    "found": true,
+    "name": "Stable Stock II"
+   },
+   {
+    "n": 78,
+    "found": true,
+    "name": "Blaze Grenade"
+   },
+   {
+    "n": 79,
+    "found": true,
+    "name": "Trigger 'Nade"
+   },
+   {
+    "n": 80,
+    "found": true,
+    "name": "Seeker Grenade"
+   },
+   {
+    "n": 81,
+    "found": true,
+    "name": "Silencer 1"
+   },
+   {
+    "n": 82,
+    "found": false,
+    "name": "Shotgun Choke III"
+   },
+   {
+    "n": 83,
+    "found": true,
+    "name": "Blue Light Stick"
+   },
+   {
+    "n": 84,
+    "found": true,
+    "name": "Vertical Grip II"
+   },
+   {
+    "n": 85,
+    "found": true,
+    "name": "Extended Barrel II"
+   },
+   {
+    "n": 86,
+    "found": true,
+    "name": "Muzzle Brake II"
+   },
+   {
+    "n": 87,
+    "found": false,
+    "name": "Extended Barrel III"
+   },
+   {
+    "n": 88,
+    "found": false,
+    "name": "Yank Grenade"
+   },
+   {
+    "n": 89,
+    "found": true,
+    "name": "Burletta"
+   },
+   {
+    "n": 90,
+    "found": false,
+    "name": "Equalizer"
+   },
+   {
+    "n": 91,
+    "found": true,
+    "name": "Snap Hook"
+   }
+  ]
+ },
+ "stencil": {
+  "found_counter": 5,
+  "total_counter": 14,
+  "tiles": [
+   {
+    "n": 1,
+    "found": false,
+    "name": "Verdigris"
+   },
+   {
+    "n": 2,
+    "found": true,
+    "name": "Slipstream"
+   },
+   {
+    "n": 3,
+    "found": true,
+    "name": "Tortoise"
+   },
+   {
+    "n": 4,
+    "found": false,
+    "name": "Sacrifice"
+   },
+   {
+    "n": 5,
+    "found": true,
+    "name": "Milky Terracotta"
+   },
+   {
+    "n": 6,
+    "found": true,
+    "name": "Cerulean"
+   },
+   {
+    "n": 7,
+    "found": false,
+    "name": "Dusty Camo"
+   },
+   {
+    "n": 8,
+    "found": false,
+    "name": "Bulwark"
+   },
+   {
+    "n": 9,
+    "found": false,
+    "name": "Dragon's Breath"
+   },
+   {
+    "n": 10,
+    "found": false,
+    "name": "Empyrean"
+   },
+   {
+    "n": 11,
+    "found": false,
+    "name": "Fortuna"
+   },
+   {
+    "n": 12,
+    "found": false,
+    "name": "Serac"
+   },
+   {
+    "n": 13,
+    "found": true,
+    "name": "Garnet"
+   },
+   {
+    "n": 14,
+    "found": false,
+    "name": "Ochre"
+   }
+  ]
+ },
+ "design": {
+  "found_counter": 37,
+  "total_counter": 100,
+  "tiles": [
+   {
+    "n": 1,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 2,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 3,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 4,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 5,
+    "found": true,
+    "name": "Polished Wardrobe"
+   },
+   {
+    "n": 6,
+    "found": true,
+    "name": "Diner Sofa"
+   },
+   {
+    "n": 7,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 8,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 9,
+    "found": true,
+    "name": "Draped Debris F"
+   },
+   {
+    "n": 10,
+    "found": true,
+    "name": "Sturdy Stash"
+   },
+   {
+    "n": 11,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 12,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 13,
+    "found": true,
+    "name": "Draped Debris E"
+   },
+   {
+    "n": 14,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 15,
+    "found": true,
+    "name": "Battered Weapon Rack"
+   },
+   {
+    "n": 16,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 17,
+    "found": true,
+    "name": "Battered Stash"
+   },
+   {
+    "n": 18,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 19,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 20,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 21,
+    "found": true,
+    "name": "Chambers Shelf"
+   },
+   {
+    "n": 22,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 23,
+    "found": true,
+    "name": "Ornate Wardrobe"
+   },
+   {
+    "n": 24,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 25,
+    "found": true,
+    "name": "Ornate Stash"
+   },
+   {
+    "n": 26,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 27,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 28,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 29,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 30,
+    "found": true,
+    "name": "Lab Ceiling Light"
+   },
+   {
+    "n": 31,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 32,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 33,
+    "found": true,
+    "name": "Work Light"
+   },
+   {
+    "n": 34,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 35,
+    "found": true,
+    "name": "Sturdy Wardrobe"
+   },
+   {
+    "n": 36,
+    "found": true,
+    "name": "Draped Debris B"
+   },
+   {
+    "n": 37,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 38,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 39,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 40,
+    "found": true,
+    "name": "Sturdy Bureau Chair"
+   },
+   {
+    "n": 41,
+    "found": true,
+    "name": "Hotel Chair"
+   },
+   {
+    "n": 42,
+    "found": true,
+    "name": "Polished Den Bed"
+   },
+   {
+    "n": 43,
+    "found": true,
+    "name": "Draped Debris A"
+   },
+   {
+    "n": 44,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 45,
+    "found": true,
+    "name": "Sturdy Weapon Rack"
+   },
+   {
+    "n": 46,
+    "found": true,
+    "name": "Glass Ceiling Lamp"
+   },
+   {
+    "n": 47,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 48,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 49,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 50,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 51,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 52,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 53,
+    "found": true,
+    "name": "Battered Den Shelf"
+   },
+   {
+    "n": 54,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 55,
+    "found": true,
+    "name": "Console Chest"
+   },
+   {
+    "n": 56,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 57,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 58,
+    "found": true,
+    "name": "Study Piano"
+   },
+   {
+    "n": 59,
+    "found": true,
+    "name": "Sturdy Den Bed"
+   },
+   {
+    "n": 60,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 61,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 62,
+    "found": true,
+    "name": "Ornate Den Shelf"
+   },
+   {
+    "n": 63,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 64,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 65,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 66,
+    "found": true,
+    "name": "Holly Bush"
+   },
+   {
+    "n": 67,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 68,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 69,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 70,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 71,
+    "found": true,
+    "name": "Polished Den Shelf"
+   },
+   {
+    "n": 72,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 73,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 74,
+    "found": true,
+    "name": "Venetian Dresser"
+   },
+   {
+    "n": 75,
+    "found": true,
+    "name": "Battered Den Bed"
+   },
+   {
+    "n": 76,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 77,
+    "found": true,
+    "name": "Draped Debris G"
+   },
+   {
+    "n": 78,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 79,
+    "found": true,
+    "name": "Diner Cupboard"
+   },
+   {
+    "n": 80,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 81,
+    "found": true,
+    "name": "Draped Debris C"
+   },
+   {
+    "n": 82,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 83,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 84,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 85,
+    "found": true,
+    "name": "Ornate Bed"
+   },
+   {
+    "n": 86,
+    "found": true,
+    "name": "Polished Stash"
+   },
+   {
+    "n": 87,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 88,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 89,
+    "found": true,
+    "name": "Archive Floor Lamp"
+   },
+   {
+    "n": 90,
+    "found": true,
+    "name": "Polished Weapon Rack"
+   },
+   {
+    "n": 91,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 92,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 93,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 94,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 95,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 96,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 97,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 98,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 99,
+    "found": false,
+    "name": "Unknown"
+   },
+   {
+    "n": 100,
+    "found": true,
+    "name": "Sturdy Den Shelf"
+   }
+  ]
+ }
+}

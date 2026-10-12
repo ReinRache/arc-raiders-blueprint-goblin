@@ -5,7 +5,9 @@ import numpy as np
 
 from arc_companion.domain.status import BlueprintStatus, apply_status, status_for
 from arc_companion.vision import screenshot_reader as sr
+from arc_companion.vision import static_panel
 from arc_companion.vision.grid_calibration import LEGACY_LAYOUT, LEGACY_SPEC, PanelSpec
+from arc_companion.vision.static_panel import StaticPanelSpec
 
 # Comfortably more than "one or two cells misread" — at/above this many
 # previously-owned blueprints going missing in a scan looks like a real
@@ -147,3 +149,35 @@ def apply_full_reset(
         if status_for(bid, owned_ids, wanted_ids, spare_ids) in (BlueprintStatus.UNOWNED, BlueprintStatus.WANT)
     }
     return apply_upgrade_only(newly_found, owned_ids, wanted_ids, spare_ids)
+
+
+def validate_panel_screenshot(
+    image: np.ndarray, category: str, spec: StaticPanelSpec, layout: Sequence[int]
+) -> ValidationResult:
+    """Validates one Frozen Trail collection screenshot (a single
+    non-scrolling grid) and reads it. The active-tab check is what stops a
+    Designs screenshot being scanned as Blueprints -- the two grids have
+    identical geometry, so nothing else would catch it."""
+    height, width = image.shape[:2]
+    if not static_panel.is_plausible_aspect_ratio(width, height, spec):
+        return ValidationResult(
+            ok=False,
+            error="This doesn't look like a full-window 16:9 screenshot of the game (wrong size or shape) — "
+            "take the screenshot with the whole Arc Raiders window visible, not a crop.",
+        )
+    tab = static_panel.active_tab(image, spec)
+    if tab is None:
+        return ValidationResult(
+            ok=False,
+            error="Couldn't find the Collections tab bar — make sure this is a full-window screenshot of the "
+            "Collections screen, not a crop or a different screen.",
+        )
+    if tab != category:
+        shown = static_panel.load_static_specs().get(tab)
+        shown_label = shown.label if shown else tab
+        return ValidationResult(
+            ok=False,
+            error=f"This looks like the {shown_label} tab, but the {spec.label} tab was expected — "
+            f"open the {spec.label} tab in-game, then take the screenshot.",
+        )
+    return ValidationResult(ok=True, grid_result=static_panel.read_static_grid(image, spec, layout))

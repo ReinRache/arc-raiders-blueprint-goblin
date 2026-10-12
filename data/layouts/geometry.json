@@ -1,5 +1,5 @@
 {
-  "_comment": "Pixel geometry of each in-game collection panel, measured at reference_width x reference_height and scaled proportionally to any screenshot (see vision/grid_calibration.py). One entry per panel. 'legacy_blueprint' is the original single Blueprints panel from before the Frozen Trail update, and is what the regression fixtures in tests/fixtures were calibrated against. A new game UI means editing or adding an entry here, not changing code. 'enabled': false keeps a panel's scanner off until it has been verified against real screenshots.",
+  "_comment": "Pixel geometry of each in-game collection panel, measured at reference_width x reference_height and scaled proportionally to any screenshot (see vision/grid_calibration.py and vision/static_panel.py). One entry per panel. 'legacy_blueprint' is the original scrolling Blueprints panel from before the Frozen Trail update, kept because the regression fixtures in tests/fixtures were calibrated against it. The Frozen Trail 'static' panels (kind: static) are single non-scrolling grids, one per category tab: found tiles are detected by the brightness of a small icon box at each tile's lower-left, and the active tab is verified by the bright pill outline around its label (so a Designs screenshot can't be scanned as Blueprints). A new game UI means editing or adding an entry here, not changing code. 'enabled': false keeps a panel's scanner off until it has been verified against real screenshots.",
   "legacy_blueprint": {
     "label": "Blueprints",
     "enabled": true,
@@ -12,14 +12,140 @@
     "origin_y_bottom": 291,
     "columns": 10,
     "rows_per_viewport": 6,
-    "book_icon_rel_x": [9, 24],
-    "book_icon_rel_y": [102, 117],
+    "book_icon_rel_x": [
+      9,
+      24
+    ],
+    "book_icon_rel_y": [
+      102,
+      117
+    ],
     "owned_brightness_threshold": 300.0,
     "scrollbar_x": 1970,
     "scrollbar_track_top": 421,
     "scrollbar_track_bottom": 1118,
     "scrollbar_pin_tolerance": 8,
-    "border_check_window_x": [-1, 6],
-    "border_check_window_y": [10, 30]
+    "border_check_window_x": [
+      -1,
+      6
+    ],
+    "border_check_window_y": [
+      10,
+      30
+    ]
+  },
+  "blueprint": {
+    "label": "Blueprints",
+    "kind": "static",
+    "enabled": true,
+    "reference_width": 2560,
+    "reference_height": 1440,
+    "aspect_ratio_tolerance": 0.03,
+    "icon_half_size": 11,
+    "tab_probe_brightness_threshold": 300,
+    "tab_probes": {
+      "blueprint": [
+        110,
+        189,
+        220,
+        191
+      ],
+      "stencil": [
+        300,
+        189,
+        400,
+        191
+      ],
+      "design": [
+        460,
+        189,
+        560,
+        191
+      ]
+    },
+    "columns": 17,
+    "first_icon_center": [
+      81,
+      498
+    ],
+    "pitch_x": 138.6875,
+    "pitch_y": 138.8,
+    "found_brightness_threshold": 150
+  },
+  "design": {
+    "label": "Designs",
+    "kind": "static",
+    "enabled": true,
+    "reference_width": 2560,
+    "reference_height": 1440,
+    "aspect_ratio_tolerance": 0.03,
+    "icon_half_size": 11,
+    "tab_probe_brightness_threshold": 300,
+    "tab_probes": {
+      "blueprint": [
+        110,
+        189,
+        220,
+        191
+      ],
+      "stencil": [
+        300,
+        189,
+        400,
+        191
+      ],
+      "design": [
+        460,
+        189,
+        560,
+        191
+      ]
+    },
+    "columns": 17,
+    "first_icon_center": [
+      81,
+      498
+    ],
+    "pitch_x": 138.6875,
+    "pitch_y": 138.8,
+    "found_brightness_threshold": 150
+  },
+  "stencil": {
+    "label": "Stencils",
+    "kind": "static",
+    "enabled": true,
+    "reference_width": 2560,
+    "reference_height": 1440,
+    "aspect_ratio_tolerance": 0.03,
+    "icon_half_size": 11,
+    "tab_probe_brightness_threshold": 300,
+    "tab_probes": {
+      "blueprint": [
+        110,
+        189,
+        220,
+        191
+      ],
+      "stencil": [
+        300,
+        189,
+        400,
+        191
+      ],
+      "design": [
+        460,
+        189,
+        560,
+        191
+      ]
+    },
+    "columns": 9,
+    "first_icon_center": [
+      91,
+      631
+    ],
+    "pitch_x": 264.0,
+    "pitch_y": 306.0,
+    "found_brightness_threshold": 540
   }
 }

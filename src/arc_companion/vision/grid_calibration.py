@@ -91,8 +91,8 @@ def load_panel_specs(path: Path = GEOMETRY_JSON) -> dict[str, PanelSpec]:
     raw = json.loads(path.read_text(encoding="utf-8"))
     specs: dict[str, PanelSpec] = {}
     for key, entry in raw.items():
-        if key.startswith("_"):
-            continue  # comment keys
+        if key.startswith("_") or entry.get("kind", "scrolling") != "scrolling":
+            continue  # comment keys, and the non-scrolling panels (see static_panel.py)
         specs[key] = PanelSpec(
             label=entry["label"],
             enabled=bool(entry.get("enabled", True)),
